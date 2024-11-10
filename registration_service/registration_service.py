@@ -1,8 +1,6 @@
-# registration_service.py
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import User
 import jwt
 import datetime
 
@@ -26,41 +24,55 @@ class User(db.Model):
 with app.app_context():
     db.create_all()
 
-@app.route('/register', methods=['POST'])
+@app.route('/api/register', methods=['POST'])
 def register_user():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
+    data = request.get_json()
 
+    # Sprawdzenie, czy dane zostały wysłane
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({'status': 'error', 'message': 'Brak wymaganych danych (username, password)'}), 400
+
+    username = data['username']
+    password = data['password']
+    
     # Sprawdzanie, czy użytkownik już istnieje
-    if User.query.filter_by(username=username).first():
-        return jsonify({'message': 'Username already exists'}), 400
-
-    # Hashowanie hasła i dodanie użytkownika do bazy
-    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+    existing_user = User.query.filter_by(username=username).first()
+    
+    if existing_user:
+        return jsonify({'status': 'error', 'message': 'Użytkownik już istnieje'}), 400
+    
+    # Tworzenie nowego użytkownika
+    hashed_password = generate_password_hash(password)
     new_user = User(username=username, password=hashed_password)
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify({'message': 'User registered successfully'}), 201
+    
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': f'Błąd przy rejestracji: {str(e)}'}), 500
+    
+    return jsonify({'status': 'success', 'message': 'Użytkownik zarejestrowany pomyślnie'})
 
 @app.route('/api/login', methods=['POST'])
-def api_login():
+def login_user():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
 
+    # Sprawdzenie, czy użytkownik istnieje w bazie
     user = User.query.filter_by(username=username).first()
-    if user and check_password_hash(user.password, password):
-        # Tworzenie tokenu JWT
-        token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, app.config['SECRET_KEY'], algorithm='HS256')
-        
-        return jsonify({'status': 'success', 'token': token})
     
-    return jsonify({'status': 'error', 'message': 'Invalid username or password'}), 401
+    if user and check_password_hash(user.password, password):  # Sprawdzanie hasła
+        # Generowanie tokenu JWT
+        token = jwt.encode({
+            'username': user.username,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)  # Token ważny przez 1 godzinę
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+
+        return jsonify({'status': 'success', 'message': 'Zalogowano pomyślnie', 'token': token})
+    
+    return jsonify({'status': 'error', 'message': 'Błędna nazwa użytkownika lub hasło'}), 401
 
 if __name__ == '__main__':
     app.run(port=5001, debug=True)
