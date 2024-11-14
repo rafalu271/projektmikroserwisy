@@ -9,6 +9,7 @@ import jwt
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'  # Klucz do podpisywania sesji i tokenów
+PRODUCT_SERVICE_URL = 'http://localhost:5002/api/products'  # Adres URL mikrousługi produktów
 
 # Formularz rejestracji
 class RegistrationForm(FlaskForm):
@@ -32,27 +33,18 @@ def index():
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
-        # Wysłanie danych rejestracyjnych do mikrousługi
         registration_data = {
             'username': form.username.data,
             'password': form.password.data
         }
         try:
-            # Żądanie do mikrousługi rejestracji
             response = requests.post('http://localhost:5001/api/register', json=registration_data)
-
             if response.status_code == 201:
                 flash('Rejestracja zakończona sukcesem. Możesz się teraz zalogować.', 'success')
                 return redirect(url_for('login'))
             else:
-                try:
-                    # Próba parsowania odpowiedzi JSON
-                    message = response.json().get('message', 'Błąd rejestracji')
-                except ValueError:
-                    # Jeśli odpowiedź nie jest w formacie JSON
-                    message = 'Błąd po stronie serwera'
+                message = response.json().get('message', 'Błąd rejestracji')
                 flash(message, 'danger')
-
         except requests.exceptions.ConnectionError:
             flash('Nie udało się połączyć z usługą rejestracji.', 'danger')
     return render_template('register.html', form=form)
@@ -60,36 +52,22 @@ def register():
 # Logowanie użytkownika
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    form = LoginForm()  # Tworzymy instancję formularza
-    
+    form = LoginForm()
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-
-        # Wysyłanie żądania do mikroserwisu logowania
-        response = requests.post('http://localhost:5001/api/login', json={
-            'username': username,
-            'password': password
-        })
-
+        response = requests.post('http://localhost:5001/api/login', json={'username': username, 'password': password})
         if response.status_code == 200:
             data = response.json()
             if data.get('status') == 'success':
-                # Zapisanie tokenu w sesji
                 session['token'] = data['token']
                 flash('Zalogowano pomyślnie!', 'success')
                 return redirect(url_for('index'))
             else:
                 flash(data.get('message', 'Błąd logowania'), 'danger')
         else:
-            try:
-                # Jeśli odpowiedź nie jest JSON, przekaż wiadomość
-                message = response.json().get('message', 'Błąd logowania')
-            except ValueError:
-                # Jeśli odpowiedź nie jest w formacie JSON
-                message = 'Błąd po stronie serwera'
+            message = response.json().get('message', 'Błąd logowania')
             flash(message, 'danger')
-
     return render_template('login.html', form=form)
 
 # Logika do wymagania logowania
@@ -102,7 +80,6 @@ def login_required(f):
             return redirect(url_for('login'))
         
         try:
-            # Sprawdzanie poprawności tokenu
             jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         except jwt.ExpiredSignatureError:
             flash('Twoja sesja wygasła, zaloguj się ponownie', 'danger')
@@ -119,6 +96,76 @@ def login_required(f):
 @login_required
 def protected_route():
     return "Zawartość dostępna tylko dla zalogowanych użytkowników"
+
+# Widoki obsługi katalogu produktów
+@app.route('/products')
+def show_products():
+    try:
+        response = requests.get(PRODUCT_SERVICE_URL)
+        response.raise_for_status()
+        products = response.json()
+    except requests.exceptions.RequestException:
+        flash("Nie udało się pobrać listy produktów.", 'danger')
+        products = []
+    
+    return render_template('products.html', products=products)
+
+@app.route('/products/add', methods=['GET', 'POST'])
+def add_product():
+    if request.method == 'POST':
+        new_product = {
+            'name': request.form['name'],
+            'description': request.form['description'],
+            'price': float(request.form['price']),
+            'quantity': int(request.form['quantity'])
+        }
+        try:
+            response = requests.post(PRODUCT_SERVICE_URL, json=new_product)
+            response.raise_for_status()
+            flash('Produkt został dodany!', 'success')
+            return redirect(url_for('show_products'))
+        except requests.exceptions.RequestException:
+            flash("Nie udało się dodać produktu.", 'danger')
+    
+    return render_template('product_form.html', product=None)
+
+@app.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
+def edit_product(product_id):
+    if request.method == 'POST':
+        updated_product = {
+            'name': request.form['name'],
+            'description': request.form['description'],
+            'price': float(request.form['price']),
+            'quantity': int(request.form['quantity'])
+        }
+        try:
+            response = requests.put(f"{PRODUCT_SERVICE_URL}/{product_id}", json=updated_product)
+            response.raise_for_status()
+            flash('Produkt został zaktualizowany!', 'success')
+            return redirect(url_for('show_products'))
+        except requests.exceptions.RequestException:
+            flash("Nie udało się zaktualizować produktu.", 'danger')
+    else:
+        try:
+            response = requests.get(f"{PRODUCT_SERVICE_URL}/{product_id}")
+            response.raise_for_status()
+            product = response.json()
+        except requests.exceptions.RequestException:
+            flash("Nie udało się pobrać szczegółów produktu.", 'danger')
+            return redirect(url_for('show_products'))
+        
+    return render_template('product_form.html', product=product)
+
+@app.route('/products/delete/<int:product_id>', methods=['POST'])
+def delete_product(product_id):
+    try:
+        response = requests.delete(f"{PRODUCT_SERVICE_URL}/{product_id}")
+        response.raise_for_status()
+        flash('Produkt został usunięty!', 'success')
+    except requests.exceptions.RequestException:
+        flash("Nie udało się usunąć produktu.", 'danger')
+    
+    return redirect(url_for('show_products'))
 
 if __name__ == '__main__':
     app.run(debug=True)

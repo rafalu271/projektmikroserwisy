@@ -15,16 +15,16 @@
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="#">Home</a>
+                    <a class="nav-link" href="{{ url_for('index') }}">Home</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#">Produkty</a>
+                    <a class="nav-link" href="{{ url_for('show_products') }}">Produkty</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#">Kontakt</a>
                 </li>
             </ul>
-            <!-- Dodane przyciski logowania i rejestracji -->
+            <!-- Przyciski logowania i rejestracji -->
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('login') }}">Zaloguj się</a>
@@ -39,7 +39,10 @@
     <div class="container mt-5">
         <h1>Witaj w naszym sklepie!</h1>
         <p>Znajdziesz tutaj najlepsze produkty.</p>
-        <button class="btn btn-primary">Kup teraz</button>
+
+        <!-- Przyciski do katalogu produktów -->
+        <a href="{{ url_for('show_products') }}" class="btn btn-primary">Zobacz wszystkie produkty</a>
+        <a href="{{ url_for('add_product') }}" class="btn btn-success">Dodaj nowy produkt</a>
     </div>
 
     <!-- Dodaj Bootstrap JavaScript -->
