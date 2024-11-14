@@ -1,9 +1,8 @@
-# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import requests
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Length, EqualTo
+from wtforms import StringField, PasswordField, SubmitField, DecimalField, IntegerField
+from wtforms.validators import DataRequired, Length, EqualTo, NumberRange
 from functools import wraps
 import jwt
 
@@ -23,6 +22,14 @@ class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
     submit = SubmitField('Login')
+
+# Formularz do dodawania/edycji produktów
+class ProductForm(FlaskForm):
+    name = StringField('Nazwa', validators=[DataRequired(), Length(min=1, max=100)])
+    description = StringField('Opis', validators=[DataRequired(), Length(min=1, max=500)])
+    price = DecimalField('Cena', validators=[DataRequired(), NumberRange(min=0)], places=2)
+    quantity = IntegerField('Ilość', validators=[DataRequired(), NumberRange(min=0)])
+    submit = SubmitField('Zapisz')
 
 @app.route('/')
 def index():
@@ -112,12 +119,13 @@ def show_products():
 
 @app.route('/products/add', methods=['GET', 'POST'])
 def add_product():
-    if request.method == 'POST':
+    form = ProductForm()  # Tworzymy instancję formularza
+    if form.validate_on_submit():
         new_product = {
-            'name': request.form['name'],
-            'description': request.form['description'],
-            'price': float(request.form['price']),
-            'quantity': int(request.form['quantity'])
+            'name': form.name.data,
+            'description': form.description.data,
+            'price': float(form.price.data), # Konwertujemy cenę na float
+            'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
         }
         try:
             response = requests.post(PRODUCT_SERVICE_URL, json=new_product)
@@ -127,16 +135,18 @@ def add_product():
         except requests.exceptions.RequestException:
             flash("Nie udało się dodać produktu.", 'danger')
     
-    return render_template('product_form.html', product=None)
+    return render_template('product_form.html', form=form, product=None)
 
-@app.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
+@app.route('/products/edit/<int:product_id>', methods=['GET', 'POST', 'PUT'])
 def edit_product(product_id):
-    if request.method == 'POST':
+    form = ProductForm()  # Tworzymy instancję formularza
+    if form.validate_on_submit():
+        # Konwertowanie typów danych przed wysłaniem
         updated_product = {
-            'name': request.form['name'],
-            'description': request.form['description'],
-            'price': float(request.form['price']),
-            'quantity': int(request.form['quantity'])
+            'name': form.name.data,
+            'description': form.description.data,
+            'price': float(form.price.data),  # Konwertujemy cenę na float
+            'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
         }
         try:
             response = requests.put(f"{PRODUCT_SERVICE_URL}/{product_id}", json=updated_product)
@@ -150,11 +160,16 @@ def edit_product(product_id):
             response = requests.get(f"{PRODUCT_SERVICE_URL}/{product_id}")
             response.raise_for_status()
             product = response.json()
+            # Ustawianie danych w formularzu
+            form.name.data = product['name']
+            form.description.data = product['description']
+            form.price.data = product['price']
+            form.quantity.data = product['quantity']
         except requests.exceptions.RequestException:
             flash("Nie udało się pobrać szczegółów produktu.", 'danger')
             return redirect(url_for('show_products'))
         
-    return render_template('product_form.html', product=product)
+    return render_template('product_form.html', form=form, product=product)
 
 @app.route('/products/delete/<int:product_id>', methods=['POST'])
 def delete_product(product_id):

@@ -10,6 +10,14 @@ def get_products():
     products = Product.query.all()
     return jsonify([product.to_dict() for product in products]), 200
 
+# Pobieranie pojedynczego produktu
+@product_blueprint.route('/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'message': 'Produkt nie znaleziony'}), 404
+    return jsonify(product.to_dict()), 200
+
 # Dodawanie nowego produktu
 @product_blueprint.route('/', methods=['POST'])
 def add_product():
