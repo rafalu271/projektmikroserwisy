@@ -57,6 +57,10 @@ def register_user():
 @app.route('/api/login', methods=['POST'])
 def login_user():
     data = request.get_json()
+    
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({'status': 'error', 'message': 'Brak danych logowania'}), 400
+    
     username = data.get('username')
     password = data.get('password')
 
@@ -65,10 +69,14 @@ def login_user():
     
     if user and check_password_hash(user.password, password):  # Sprawdzanie hasła
         # Generowanie tokenu JWT
-        token = jwt.encode({
-            'username': user.username,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)  # Token ważny przez 1 godzinę
-        }, app.config['SECRET_KEY'], algorithm='HS256')
+        token = jwt.encode(
+            {
+                'username': user.username,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            },
+            app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
 
         return jsonify({'status': 'success', 'message': 'Zalogowano pomyślnie', 'token': token})
     
