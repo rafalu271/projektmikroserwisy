@@ -5,9 +5,14 @@ from wtforms import StringField, PasswordField, SubmitField, DecimalField, Integ
 from wtforms.validators import DataRequired, Length, EqualTo, NumberRange
 from functools import wraps
 import jwt
+from dotenv import load_dotenv
+import os
+
+# Załadowanie zmiennych z pliku .env
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key'  # Klucz do podpisywania sesji i tokenów
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
 PRODUCT_SERVICE_URL = 'http://localhost:5002/api/products'  # Adres URL mikrousługi produktów
 
 # URL do usługi koszyka i zamówień
@@ -34,6 +39,36 @@ class ProductForm(FlaskForm):
     price = DecimalField('Cena', validators=[DataRequired(), NumberRange(min=0)], places=2)
     quantity = IntegerField('Ilość', validators=[DataRequired(), NumberRange(min=0)])
     submit = SubmitField('Zapisz')
+
+# Funkcja pomocnicza do dodawania tokenu w nagłówkach
+def add_auth_headers(headers=None):
+    if headers is None:
+        headers = {}
+    token = session.get('token')
+    if token:
+        headers['Authorization'] = f"Bearer {token}"
+    return headers
+
+# Logika do wymagania logowania
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = session.get('token')
+        if not token:
+            flash('Zaloguj się, aby uzyskać dostęp', 'danger')
+            return redirect(url_for('login'))
+        
+        try:
+            jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        except jwt.ExpiredSignatureError:
+            flash('Twoja sesja wygasła, zaloguj się ponownie', 'danger')
+            return redirect(url_for('login'))
+        except jwt.InvalidTokenError:
+            flash('Nieprawidłowy token', 'danger')
+            return redirect(url_for('login'))
+
+        return f(*args, **kwargs)
+    return decorated_function
 
 @app.route('/')
 def index():
@@ -73,51 +108,23 @@ def login():
         try:
             response = requests.post('http://localhost:5001/api/login', json={'username': username, 'password': password})
             if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if data.get('status') == 'success':
-                        session['token'] = data['token']
-                        flash('Zalogowano pomyślnie!', 'success')
-                        return redirect(url_for('index'))
-                    else:
-                        flash(data.get('message', 'Błąd logowania'), 'danger')
-                except requests.exceptions.JSONDecodeError:
-                    flash('Niepoprawny format odpowiedzi serwera.', 'danger')
+                data = response.json()
+                session['token'] = data['token']
+                flash('Zalogowano pomyślnie!', 'success')
+                return redirect(url_for('index'))
             else:
-                # Obsługa przypadku, gdy kod odpowiedzi nie jest 200
-                message = response.json().get('message', 'Błąd logowania') if response.headers.get('Content-Type') == 'application/json' else 'Błąd logowania'
+                message = response.json().get('message', 'Błąd logowania')
                 flash(message, 'danger')
         except requests.exceptions.ConnectionError:
             flash('Nie udało się połączyć z usługą logowania.', 'danger')
     return render_template('login.html', form=form)
 
-
-# Logika do wymagania logowania
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        token = session.get('token')
-        if not token:
-            flash('Zaloguj się, aby uzyskać dostęp', 'danger')
-            return redirect(url_for('login'))
-        
-        try:
-            jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        except jwt.ExpiredSignatureError:
-            flash('Twoja sesja wygasła, zaloguj się ponownie', 'danger')
-            return redirect(url_for('login'))
-        except jwt.InvalidTokenError:
-            flash('Nieprawidłowy token', 'danger')
-            return redirect(url_for('login'))
-
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Wymagane logowanie
-@app.route('/some_protected_route')
-@login_required
-def protected_route():
-    return "Zawartość dostępna tylko dla zalogowanych użytkowników"
+# Wylogowanie użytkownika
+@app.route('/logout')
+def logout():
+    session.pop('token', None)  # Usuwamy token z sesji
+    flash('Zostałeś wylogowany.', 'success')
+    return redirect(url_for('index'))
 
 # Widoki obsługi katalogu produktów
 @app.route('/products')
@@ -202,13 +209,14 @@ def delete_product(product_id):
 @login_required
 def view_cart():
     try:
-        response = requests.get(CART_SERVICE_URL)
+        headers = add_auth_headers()
+        response = requests.get(CART_SERVICE_URL, headers=headers)
         response.raise_for_status()
         cart_items = response.json()
     except requests.exceptions.RequestException:
         flash("Nie udało się pobrać zawartości koszyka.", 'danger')
         cart_items = []
-    
+
     return render_template('cart.html', cart_items=cart_items)
 
 # Dodawanie produktu do koszyka
@@ -216,12 +224,13 @@ def view_cart():
 @login_required
 def add_to_cart(product_id):
     try:
-        response = requests.post(f"{CART_SERVICE_URL}/add", json={'product_id': product_id})
+        headers = add_auth_headers()
+        response = requests.post(f"{CART_SERVICE_URL}/add", json={'product_id': product_id}, headers=headers)
         response.raise_for_status()
         flash("Produkt dodany do koszyka.", 'success')
     except requests.exceptions.RequestException:
         flash("Nie udało się dodać produktu do koszyka.", 'danger')
-    
+
     return redirect(url_for('show_products'))
 
 # Aktualizacja ilości produktu w koszyku
@@ -230,7 +239,8 @@ def add_to_cart(product_id):
 def update_cart(item_id):
     quantity = request.form.get('quantity', type=int)
     try:
-        response = requests.put(f"{CART_SERVICE_URL}/update/{item_id}", json={'quantity': quantity})
+        headers = add_auth_headers()
+        response = requests.put(f"{CART_SERVICE_URL}/update/{item_id}", json={'quantity': quantity}, headers=headers)
         response.raise_for_status()
         flash("Koszyk zaktualizowany.", 'success')
     except requests.exceptions.RequestException:
@@ -243,7 +253,8 @@ def update_cart(item_id):
 @login_required
 def checkout():
     try:
-        response = requests.post(ORDER_SERVICE_URL)
+        headers = add_auth_headers()
+        response = requests.post(ORDER_SERVICE_URL, headers=headers)
         response.raise_for_status()
         flash("Zamówienie zostało złożone pomyślnie.", 'success')
     except requests.exceptions.RequestException:
@@ -256,7 +267,8 @@ def checkout():
 @login_required
 def view_orders():
     try:
-        response = requests.get(ORDER_SERVICE_URL)
+        headers = add_auth_headers()
+        response = requests.get(ORDER_SERVICE_URL, headers=headers)
         response.raise_for_status()
         orders = response.json()
     except requests.exceptions.RequestException:
