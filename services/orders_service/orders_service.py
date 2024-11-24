@@ -4,6 +4,15 @@ from routes import cart_blueprint, order_blueprint
 from config import Config
 import jwt
 from functools import wraps
+import py_eureka_client.eureka_client as eureka_client
+
+# Konfiguracja klienta Eureka
+eureka_client.init(eureka_server="http://172.28.0.12:8761,",
+                                app_name="orders_service",
+                                instance_port=5003)
+
+# Rejestracja w Eureka
+eureka_client.register()
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -48,4 +57,4 @@ def protected_route():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5003)  # Przykładowo na porcie 5003
+    app.run(debug=True, host='0.0.0.0', port=5003)  # Przykładowo na porcie 5003

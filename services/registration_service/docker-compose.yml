@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  registration_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./instance:/app/instance  # Miejsce na bazę SQLite
+    environment:
+      - FLASK_APP=registration_service.py
+      - FLASK_RUN_PORT=5001
+    restart: always

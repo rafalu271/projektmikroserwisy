@@ -20,3 +20,9 @@ start aplikacji rejestracji userów:
 start aplikacji katalogów produktów:
 - przejść do katalogu services\product_service i wykonać:
     python .\product_service.py
+
+start aplikacji zamówień:
+- przejść do katalogu services\product_service i wykonać:
+    python .\orders_service.py
+
+Aplikacja ma już przygotowane pliki docker-compose i Dockerfile dla gotowych aplikacji. Niestety nie ma jeszcze w pełni działającej konfiguracji Eureka.

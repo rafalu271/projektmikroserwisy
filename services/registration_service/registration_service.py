@@ -3,6 +3,16 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
+import py_eureka_client.eureka_client as eureka_client
+
+# Konfiguracja klienta Eureka
+
+eureka_client.init(eureka_server="http://172.28.0.12:8761,",
+                                app_name="registration_service",
+                                instance_port=5001)
+
+# Rejestracja w Eureka
+eureka_client.register()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_key'
@@ -83,4 +93,4 @@ def login_user():
     return jsonify({'status': 'error', 'message': 'Błędna nazwa użytkownika lub hasło'}), 401
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5001)

@@ -7,17 +7,58 @@ from functools import wraps
 import jwt
 from dotenv import load_dotenv
 import os
+import asyncio
+import aiohttp
+import py_eureka_client.eureka_client as eureka_client
 
 # Załadowanie zmiennych z pliku .env
 load_dotenv()
 
+# Konfiguracja klienta Eureka
+eureka_client.init(eureka_server="http://172.28.0.12:8761/eureka",
+                                app_name="main_app",
+                                instance_port=5000)
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
-PRODUCT_SERVICE_URL = 'http://localhost:5002/api/products'  # Adres URL mikrousługi produktów
 
-# URL do usługi koszyka i zamówień
-CART_SERVICE_URL = 'http://localhost:5003/api/cart'
-ORDER_SERVICE_URL = 'http://localhost:5003/api/orders'
+# Funkcja synchronizująca z Eureka
+def get_service_urls():
+    # Użycie synchronej metody do pobierania URL-e z Eureka
+    register_service_url = eureka_client.do_service('registration_service', '/api/register')
+    login_service_url = eureka_client.do_service('registration_service', '/api/login')
+    product_service_url = eureka_client.do_service('product_service', '/api/products')
+    cart_service_url = eureka_client.do_service('orders_service', '/api/cart')
+    order_service_url = eureka_client.do_service('orders_service', '/api/orders')
+    
+    return {
+        'REGISTER_SERVICE_URL': register_service_url,
+        'LOGIN_SERVICE_URL': login_service_url,
+        'PRODUCT_SERVICE_URL': product_service_url,
+        'CART_SERVICE_URL': cart_service_url,
+        'ORDER_SERVICE_URL': order_service_url,
+    }
+
+# Funkcja fabryki aplikacji
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
+
+    # Inicjalizowanie zmiennych globalnych
+    service_urls = get_service_urls()
+    global REGISTER_SERVICE_URL, LOGIN_SERVICE_URL, PRODUCT_SERVICE_URL, CART_SERVICE_URL, ORDER_SERVICE_URL
+    REGISTER_SERVICE_URL = service_urls['REGISTER_SERVICE_URL']
+    LOGIN_SERVICE_URL = service_urls['LOGIN_SERVICE_URL']
+    PRODUCT_SERVICE_URL = service_urls['PRODUCT_SERVICE_URL']
+    CART_SERVICE_URL = service_urls['CART_SERVICE_URL']
+    ORDER_SERVICE_URL = service_urls['ORDER_SERVICE_URL']
+    
+    print("Service URLs initialized:", service_urls)
+
+    return app
+
+# Tworzenie instancji aplikacji
+app = create_app()
 
 # Formularz rejestracji
 class RegistrationForm(FlaskForm):
@@ -84,7 +125,7 @@ def register():
             'password': form.password.data
         }
         try:
-            response = requests.post('http://localhost:5001/api/register', json=registration_data)
+            response = requests.post(REGISTER_SERVICE_URL, json=registration_data)
             if response.status_code == 201:
                 flash('Rejestracja zakończona sukcesem. Możesz się teraz zalogować.', 'success')
                 return redirect(url_for('login'))
@@ -106,7 +147,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
         try:
-            response = requests.post('http://localhost:5001/api/login', json={'username': username, 'password': password})
+            response = requests.post(LOGIN_SERVICE_URL, json={'username': username, 'password': password})
             if response.status_code == 200:
                 data = response.json()
                 print("Zwrócony token:", data['token'])  # Debugowanie tokenu
@@ -377,4 +418,4 @@ def view_orders():
     return render_template('orders.html', orders=orders)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)  # Użyj host='0.0.0.0'

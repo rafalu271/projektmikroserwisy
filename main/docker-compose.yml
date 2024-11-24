@@ -1,0 +1,56 @@
+services:
+  eureka_server:
+    image: bitinit/eureka
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      eureka-network:
+        ipv4_address: 172.28.0.12  # Statyczny adres IP
+
+  main_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    networks:
+      - eureka-network
+    depends_on:
+      - eureka_server  # Main app should wait until Eureka is up
+
+  registration_service:
+    image: registration_service-registration_service
+    ports:
+      - "5001:5001"
+    networks:
+      - eureka-network
+    environment:
+      - EUREKA_SERVER=http://eureka_server:8761/eureka
+
+  product_service:
+    image: product_service-product_service
+    ports:
+      - "5002:5002"
+    networks:
+      - eureka-network
+    environment:
+      - EUREKA_SERVER=http://eureka_server:8761/eureka
+
+  orders_servicet:
+    image: orders_service-orders_service
+    ports:
+      - "5003:5003"
+    networks:
+      - eureka-network
+    environment:
+      - EUREKA_SERVER=http://eureka_server:8761/eureka
+
+networks:
+  eureka-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.28.0.0/16"  # Zakres adresów IP

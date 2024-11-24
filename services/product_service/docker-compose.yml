@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  product_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./instance:/app/instance  # Folder na dane bazy SQLite
+    environment:
+      - FLASK_APP=product_service.py
+      - FLASK_RUN_PORT=5002
+    restart: always
