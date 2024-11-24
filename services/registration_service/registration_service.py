@@ -71,7 +71,7 @@ def login_user():
         # Generowanie tokenu JWT
         token = jwt.encode(
             {
-                'username': user.username,
+                'user_id': user.id,  # Używamy user_id zamiast username
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
             },
             app.config['SECRET_KEY'],

@@ -11,6 +11,9 @@ app.config.from_object(Config)
 # Inicjalizacja bazy danych
 db.init_app(app)
 
+# Tworzenie tabel w bazie danych
+with app.app_context():
+    db.create_all()  # Tworzy tabele na podstawie modeli
 
 # Dekorator do weryfikacji tokenów JWT
 def token_required(f):
