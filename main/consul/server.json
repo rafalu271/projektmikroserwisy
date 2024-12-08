@@ -1,0 +1,10 @@
+{
+    "services": [
+      {
+        "name": "ingress-gateway",
+        "address": "ingress-gateway",
+        "port": 8080
+      }
+    ]
+  }
+  

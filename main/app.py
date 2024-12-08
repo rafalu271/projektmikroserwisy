@@ -36,7 +36,12 @@ def register_service_with_consul():
         service_id=service_id,
         address=os.getenv('SERVICE_HOST', '127.0.0.1'),
         port=service_port,
-        tags=["flask", "main_service"]
+        tags=[
+            "traefik.enable=true",
+            f"traefik.http.routers.{service_name}.rule=Host(`main.local`)",
+            f"traefik.http.services.{service_name}.loadbalancer.server.port={service_port}",
+            "flask"
+        ]
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
 
@@ -191,18 +196,19 @@ def logout():
 @app.route('/products')
 def show_products():
     try:
-        product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
-        if not product_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
-            return render_template('products.html', products=products)
+        # Używamy endpointu Traefik API Gateway
+        api_gateway_url = "http://api.esklep.com/products"
 
-        response = requests.get(product_service_url)
+        response = requests.get(api_gateway_url)
         response.raise_for_status()
         products = response.json()
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        # Logujemy błąd w przypadku problemów z żądaniem
+        app.logger.error(f"Nie udało się pobrać listy produktów: {str(e)}")
         flash("Nie udało się pobrać listy produktów.", 'danger')
         products = []
     
+    # Renderujemy stronę z listą produktów
     return render_template('products.html', products=products)
 
 @app.route('/products/<int:product_id>', methods=['GET'])

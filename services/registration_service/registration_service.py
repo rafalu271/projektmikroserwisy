@@ -6,7 +6,7 @@ import datetime
 import consul
 import os
 
-# Dodanie do Consul
+# Dodanie do Consul z Traefik
 def register_service_with_consul():
     consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
     
@@ -16,7 +16,6 @@ def register_service_with_consul():
     consul_client.agent.service.deregister(service_id)
         
     # Rejestracja usługi
-
     service_name = "registration_service"
     service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
     service_port = 5001
@@ -26,9 +25,16 @@ def register_service_with_consul():
         service_id=service_id,
         address=os.getenv('SERVICE_HOST', '127.0.0.1'),
         port=service_port,
-        tags=["flask", "registration_service"]
+        tags=[
+            "traefik.enable=true",
+            f"traefik.http.routers.registration_service.rule=Host(`api.esklep.com`) && PathPrefix(`/register`)",
+            f"traefik.http.routers.registration_service.rule=Host(`api.esklep.com`) && PathPrefix(`/login`)",
+            f"traefik.http.services.registration_service.loadbalancer.server.port={service_port}",
+            "flask"
+        ]
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_key'

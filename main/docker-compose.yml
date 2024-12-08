@@ -4,11 +4,20 @@ services:
     container_name: consul-server
     volumes:
       - consul_data:/consul/data  # Wolumen dla danych trwałych Consul
+      - ./consul/server.json:/consul/config/server.json
     ports:
-      - "8500:8500"
+      - "8500:8500"  # Consul UI i API
+      - "8600:8600/udp"  # DNS
     command: >
       consul agent -server -bootstrap -ui -client=0.0.0.0
       -data-dir=/consul/data
+    environment:
+      CONSUL_LOCAL_CONFIG: |
+        {
+          "datacenter": "dc1",
+          "primary_datacenter": "dc1",
+          "connect": { "enabled": true }
+        }
     networks:
       - app-network
 
@@ -71,6 +80,26 @@ services:
       - consul
     environment:
       - CONSUL_SERVER=http://consul-server:8500
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true" # Udostępnia panel Traefika (tylko do testów)
+      - "--providers.consulcatalog=true" # Konsultuj katalog Consula
+      - "--providers.consulcatalog.endpoint.address=consul-server:8500"
+      - "--entrypoints.web.address=:80" # Punkt wejściowy HTTP
+      - "--entrypoints.websecure.address=:443" # Punkt wejściowy HTTPS (opcjonalne)
+      - "--log.level=DEBUG" # Poziom logowania dla debugowania
+    ports:
+      - "80:80" # HTTP
+      - "443:443" # HTTPS (opcjonalne)
+      - "8080:8080" # Panel administracyjny Traefika
+    networks:
+      - app-network
+    depends_on:
+      - consul
+    volumes:
+      - ./config/traefik.yml:/etc/traefik/traefik.yml # Montowanie pliku konfiguracyjnego
 
 volumes:
   consul_data:

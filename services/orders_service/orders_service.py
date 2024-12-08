@@ -26,7 +26,14 @@ def register_service_with_consul():
         service_id=service_id,
         address=os.getenv('SERVICE_HOST', '127.0.0.1'),
         port=service_port,
-        tags=["flask", "orders_service"]
+        tags=[
+            "traefik.enable=true",
+            f"traefik.http.routers.orders_service.rule=Host(`api.esklep.com`) && PathPrefix(`/cart`)",
+            f"traefik.http.routers.orders_service.rule=Host(`api.esklep.com`) && PathPrefix(`/orders`)",
+            f"traefik.http.routers.orders_service.rule=Host(`api.esklep.com`) && PathPrefix(`/checkout`)",
+            f"traefik.http.services.orders_service.loadbalancer.server.port={service_port}",
+            "flask"
+        ]
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
 

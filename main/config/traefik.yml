@@ -1,0 +1,23 @@
+api:
+  insecure: true # Udostępnia panel Traefika (Tylko do testów!)
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  consulCatalog:
+    defaulRule: "Host(' {{ .Name }}.localhost')"
+    exposedByDefault: true
+      endpoint:
+        address: "consul-server:8500"
+        sheme: http
+
+api:
+  insecure: true
+
+log:
+  level: DEBUG

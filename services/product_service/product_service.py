@@ -9,31 +9,30 @@ import os
 def register_service_with_consul():
     consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
     
-    service_id = "product_service_id"
+    service_id = "product_service_id"  # Unikalny identyfikator dla Twojej usługi
 
-    # Sprawdzenie, czy usługa istnieje i jej usunięcie
+    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
     consul_client.agent.service.deregister(service_id)
-
+        
+    # Rejestracja usługi
     service_name = "product_service"
     service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
     service_port = 5002
 
-    endpoints = [
-        "/api/products",
-        "/api/products/<id>",
-        "/api/products/search",
-    ]
-
-    # Rejestracja usługi z health check
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
         address=os.getenv('SERVICE_HOST', '127.0.0.1'),
         port=service_port,
-        tags=["flask", "product_service"] + endpoints,
-        check=consul.Check.http("http://localhost:5002/health", interval="10s")
+        tags=[
+            "traefik.enable=true",
+            f"traefik.http.routers.product_service.rule=Host(`api.esklep.com`) && PathPrefix(`/products`)",
+            "traefik.http.services.product_service.loadbalancer.server.scheme=http",
+            f"traefik.http.services.product_service.loadbalancer.server.port={service_port}"
+            "flask"
+        ]
     )
-    print(f"Zarejestrowano usługę {service_name} z endpointami i health check w Consul")
+    print(f"Zarejestrowano usługę {service_name} w Consul")
 
 
 app = Flask(__name__)
