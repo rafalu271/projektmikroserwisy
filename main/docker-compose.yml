@@ -1,12 +1,16 @@
 services:
-  eureka_server:
-    image: bitinit/eureka
-    container_name: eureka-server
+  consul:
+    image: hashicorp/consul:latest
+    container_name: consul-server
+    volumes:
+      - consul_data:/consul/data  # Wolumen dla danych trwałych Consul
     ports:
-      - "8761:8761"
+      - "8500:8500"
+    command: >
+      consul agent -server -bootstrap -ui -client=0.0.0.0
+      -data-dir=/consul/data
     networks:
-      eureka-network:
-        ipv4_address: 172.28.0.12  # Statyczny adres IP
+      - app-network
 
   main_app:
     build:
@@ -17,40 +21,60 @@ services:
     env_file:
       - .env
     networks:
-      - eureka-network
+      - app-network
     depends_on:
-      - eureka_server  # Main app should wait until Eureka is up
+      - consul
+    environment:
+      - CONSUL_SERVER=http://consul-server:8500
 
   registration_service:
-    image: registration_service-registration_service
+    # image: registration_service-registration_service
+    build: 
+      context: ../services/registration_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
+      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
+
     ports:
       - "5001:5001"
     networks:
-      - eureka-network
+      - app-network
+    depends_on:
+      - consul
     environment:
-      - EUREKA_SERVER=http://eureka_server:8761/eureka
+      - CONSUL_SERVER=http://consul-server:8500
 
   product_service:
-    image: product_service-product_service
+    # image: product_service-product_service
+    build: 
+      context: ../services/product_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
+      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
+
     ports:
       - "5002:5002"
     networks:
-      - eureka-network
+      - app-network
+    depends_on:
+      - consul
     environment:
-      - EUREKA_SERVER=http://eureka_server:8761/eureka
+      - CONSUL_SERVER=http://consul-server:8500
 
   orders_servicet:
-    image: orders_service-orders_service
+    # image: orders_service-orders_service
+    build: 
+      context: ../services/orders_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
+      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"]
+
     ports:
       - "5003:5003"
     networks:
-      - eureka-network
+      - app-network
+    depends_on:
+      - consul
     environment:
-      - EUREKA_SERVER=http://eureka_server:8761/eureka
+      - CONSUL_SERVER=http://consul-server:8500
+
+volumes:
+  consul_data:
 
 networks:
-  eureka-network:
+  app-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: "172.28.0.0/16"  # Zakres adresów IP

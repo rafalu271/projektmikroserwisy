@@ -4,15 +4,31 @@ from routes import cart_blueprint, order_blueprint
 from config import Config
 import jwt
 from functools import wraps
-import py_eureka_client.eureka_client as eureka_client
+import consul
+import os
 
-# Konfiguracja klienta Eureka
-eureka_client.init(eureka_server="http://172.28.0.12:8761,",
-                                app_name="orders_service",
-                                instance_port=5003)
+# Dodanie do Consul
+def register_service_with_consul():
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+    
+    service_id = "orders_service_id"  # Unikalny identyfikator dla Twojej usługi
 
-# Rejestracja w Eureka
-eureka_client.register()
+    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
+    consul_client.agent.service.deregister(service_id)
+        
+    # Rejestracja usługi
+    service_name = "orders_service"
+    service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
+    service_port = 5003
+
+    consul_client.agent.service.register(
+        name=service_name,
+        service_id=service_id,
+        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        port=service_port,
+        tags=["flask", "orders_service"]
+    )
+    print(f"Zarejestrowano usługę {service_name} w Consul")
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -57,4 +73,7 @@ def protected_route():
 
 
 if __name__ == '__main__':
+    # Rejestracja usługi w Consul
+    register_service_with_consul()
+
     app.run(debug=True, host='0.0.0.0', port=5003)  # Przykładowo na porcie 5003

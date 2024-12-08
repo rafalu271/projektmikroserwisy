@@ -3,16 +3,32 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
-import py_eureka_client.eureka_client as eureka_client
+import consul
+import os
 
-# Konfiguracja klienta Eureka
+# Dodanie do Consul
+def register_service_with_consul():
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+    
+    service_id = "registration_service_id"  # Unikalny identyfikator dla Twojej usługi
 
-eureka_client.init(eureka_server="http://172.28.0.12:8761,",
-                                app_name="registration_service",
-                                instance_port=5001)
+    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
+    consul_client.agent.service.deregister(service_id)
+        
+    # Rejestracja usługi
 
-# Rejestracja w Eureka
-eureka_client.register()
+    service_name = "registration_service"
+    service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
+    service_port = 5001
+
+    consul_client.agent.service.register(
+        name=service_name,
+        service_id=service_id,
+        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        port=service_port,
+        tags=["flask", "registration_service"]
+    )
+    print(f"Zarejestrowano usługę {service_name} w Consul")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_key'
@@ -93,4 +109,7 @@ def login_user():
     return jsonify({'status': 'error', 'message': 'Błędna nazwa użytkownika lub hasło'}), 401
 
 if __name__ == '__main__':
+    # Rejestracja usługi w Consul
+    register_service_with_consul()
+
     app.run(debug=True, host='0.0.0.0', port=5001)

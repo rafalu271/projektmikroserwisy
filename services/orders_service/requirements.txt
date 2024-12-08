@@ -2,4 +2,4 @@ Flask==3.1.0
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==3.1.0
 PyJWT==2.8.0
-py-eureka-client
+python-consul

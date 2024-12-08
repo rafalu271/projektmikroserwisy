@@ -2,7 +2,7 @@ Dostępne mikrousługi:
 - Główna aplikacja - działa na porcie 5000
 - Serwis rejestracji użutkowników - port 5001
 - Serwis katalogu produktów - port 5002
-- Serwis zarządzania zamówieniami - port 5003 (jeszcze nie ma)
+- Serwis zarządzania zamówieniami - port 5003
 - Serwis powiadomień - port 5004 (jeszcze nie ma)
 
 Instralacja potrzebnych pakietów:
@@ -25,4 +25,6 @@ start aplikacji zamówień:
 - przejść do katalogu services\product_service i wykonać:
     python .\orders_service.py
 
-Aplikacja ma już przygotowane pliki docker-compose i Dockerfile dla gotowych aplikacji. Niestety nie ma jeszcze w pełni działającej konfiguracji Eureka.
+Aplikacja ma już przygotowane pliki docker-compose i Dockerfile dla gotowych aplikacji. Niestety nie ma jeszcze w pełni działającej konfiguracji Consul.
+
+Można już uruchomić projekt przez jeden docker_compose. Wystarczy uruchomić docker_compose znajdujący się w głównym katalogu main.

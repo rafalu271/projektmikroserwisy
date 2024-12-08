@@ -7,58 +7,67 @@ from functools import wraps
 import jwt
 from dotenv import load_dotenv
 import os
-import asyncio
-import aiohttp
-import py_eureka_client.eureka_client as eureka_client
+import consul
+import time
+# from flask_consulate import Consul, ConsulManager
+
 
 # Załadowanie zmiennych z pliku .env
 load_dotenv()
 
-# Konfiguracja klienta Eureka
-eureka_client.init(eureka_server="http://172.28.0.12:8761/eureka",
-                                app_name="main_app",
-                                instance_port=5000)
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
 
-# Funkcja synchronizująca z Eureka
-def get_service_urls():
-    # Użycie synchronej metody do pobierania URL-e z Eureka
-    register_service_url = eureka_client.do_service('registration_service', '/api/register')
-    login_service_url = eureka_client.do_service('registration_service', '/api/login')
-    product_service_url = eureka_client.do_service('product_service', '/api/products')
-    cart_service_url = eureka_client.do_service('orders_service', '/api/cart')
-    order_service_url = eureka_client.do_service('orders_service', '/api/orders')
+def register_service_with_consul():
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
     
+    service_id = "main_app_id"  # Unikalny identyfikator dla Twojej usługi
+
+    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
+    consul_client.agent.service.deregister(service_id)
+        
+    # Rejestracja usługi
+    service_name = "main_app"
+    service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
+    service_port = 5000
+
+    consul_client.agent.service.register(
+        name=service_name,
+        service_id=service_id,
+        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        port=service_port,
+        tags=["flask", "main_service"]
+    )
+    print(f"Zarejestrowano usługę {service_name} w Consul")
+
+def get_service_url(service_name):
+    try:
+        consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+        services = consul_client.agent.services()
+
+        for service in services.values():
+            if service['Service'] == service_name:
+                host = service.get('Address', '127.0.0.1')
+                port = service.get('Port', 5000)
+                return f"http://{host}:{port}"
+    except Exception as e:
+        print(f"Nie znaleziono usługi {service_name}: {e}")
+        return None
+
+def get_service_urls():
     return {
-        'REGISTER_SERVICE_URL': register_service_url,
-        'LOGIN_SERVICE_URL': login_service_url,
-        'PRODUCT_SERVICE_URL': product_service_url,
-        'CART_SERVICE_URL': cart_service_url,
-        'ORDER_SERVICE_URL': order_service_url,
+        'REGISTER_SERVICE_URL': get_service_url('registration_service'),
+        'LOGIN_SERVICE_URL': get_service_url('registration_service'),
+        'PRODUCT_SERVICE_URL': get_service_url('product_service'),
+        'CART_SERVICE_URL': get_service_url('orders_service'),
+        'ORDER_SERVICE_URL': get_service_url('orders_service'),
     }
 
-# Funkcja fabryki aplikacji
-def create_app():
-    app = Flask(__name__)
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
-
-    # Inicjalizowanie zmiennych globalnych
-    service_urls = get_service_urls()
-    global REGISTER_SERVICE_URL, LOGIN_SERVICE_URL, PRODUCT_SERVICE_URL, CART_SERVICE_URL, ORDER_SERVICE_URL
-    REGISTER_SERVICE_URL = service_urls['REGISTER_SERVICE_URL']
-    LOGIN_SERVICE_URL = service_urls['LOGIN_SERVICE_URL']
-    PRODUCT_SERVICE_URL = service_urls['PRODUCT_SERVICE_URL']
-    CART_SERVICE_URL = service_urls['CART_SERVICE_URL']
-    ORDER_SERVICE_URL = service_urls['ORDER_SERVICE_URL']
-    
-    print("Service URLs initialized:", service_urls)
-
-    return app
-
-# Tworzenie instancji aplikacji
-app = create_app()
+def get_service_url_from_config(service_name):
+    urls = app.config.get('SERVICE_URLS', {})  # Pobranie URLi
+    url = urls.get(service_name)
+    print(f"Adres URL z konfiguracji dla '{service_name}': {url}")  # Debugowanie
+    return url
 
 # Formularz rejestracji
 class RegistrationForm(FlaskForm):
@@ -125,7 +134,12 @@ def register():
             'password': form.password.data
         }
         try:
-            response = requests.post(REGISTER_SERVICE_URL, json=registration_data)
+            register_service_url = get_service_url_from_config('REGISTER_SERVICE_URL')
+            if not register_service_url:
+                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                return render_template('register.html', form=form)
+        
+            response = requests.post(register_service_url, json=registration_data)
             if response.status_code == 201:
                 flash('Rejestracja zakończona sukcesem. Możesz się teraz zalogować.', 'success')
                 return redirect(url_for('login'))
@@ -147,7 +161,12 @@ def login():
         username = request.form['username']
         password = request.form['password']
         try:
-            response = requests.post(LOGIN_SERVICE_URL, json={'username': username, 'password': password})
+            login_service_url = get_service_url_from_config('LOGIN_SERVICE_URL')
+            if not login_service_url:
+                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                return render_template('login.html', form=form)
+
+            response = requests.post(login_service_url, json={'username': username, 'password': password})
             if response.status_code == 200:
                 data = response.json()
                 print("Zwrócony token:", data['token'])  # Debugowanie tokenu
@@ -172,7 +191,12 @@ def logout():
 @app.route('/products')
 def show_products():
     try:
-        response = requests.get(PRODUCT_SERVICE_URL)
+        product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+        if not product_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return render_template('products.html', products=products)
+
+        response = requests.get(product_service_url)
         response.raise_for_status()
         products = response.json()
     except requests.exceptions.RequestException:
@@ -184,8 +208,13 @@ def show_products():
 @app.route('/products/<int:product_id>', methods=['GET'])
 def show_product(product_id):
     try:
+        product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+        if not product_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return render_template('product_detail.html', product=product)
+
         # Wysłanie zapytania do serwisu produktów w celu pobrania szczegółów produktu
-        response = requests.get(f"{PRODUCT_SERVICE_URL}/{product_id}")
+        response = requests.get(f"{product_service_url}/{product_id}")
         response.raise_for_status()  # Sprawdzamy, czy zapytanie się powiodło
         product = response.json()  # Otrzymujemy dane produktu w formacie JSON
     except requests.exceptions.RequestException:
@@ -207,7 +236,12 @@ def add_product():
             'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
         }
         try:
-            response = requests.post(PRODUCT_SERVICE_URL, json=new_product)
+            product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+            if not product_service_url:
+                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                return render_template('product_form.html', form=form, product=None)
+
+            response = requests.post(product_service_url, json=new_product)
             response.raise_for_status()
             flash('Produkt został dodany!', 'success')
             return redirect(url_for('show_products'))
@@ -228,7 +262,12 @@ def edit_product(product_id):
             'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
         }
         try:
-            response = requests.put(f"{PRODUCT_SERVICE_URL}/{product_id}", json=updated_product)
+            product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+            if not product_service_url:
+                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                return render_template('product_form.html', form=form, product=product)
+
+            response = requests.put(f"{product_service_url}/{product_id}", json=updated_product)
             response.raise_for_status()
             flash('Produkt został zaktualizowany!', 'success')
             return redirect(url_for('show_products'))
@@ -236,7 +275,12 @@ def edit_product(product_id):
             flash("Nie udało się zaktualizować produktu.", 'danger')
     else:
         try:
-            response = requests.get(f"{PRODUCT_SERVICE_URL}/{product_id}")
+            product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+            if not product_service_url:
+                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                return render_template('product_form.html', form=form, product=product)
+
+            response = requests.get(f"{product_service_url}/{product_id}")
             response.raise_for_status()
             product = response.json()
             # Ustawianie danych w formularzu
@@ -253,7 +297,12 @@ def edit_product(product_id):
 @app.route('/products/delete/<int:product_id>', methods=['POST'])
 def delete_product(product_id):
     try:
-        response = requests.delete(f"{PRODUCT_SERVICE_URL}/{product_id}")
+        product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+        if not product_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
+        response = requests.delete(f"{product_service_url}/{product_id}")
         response.raise_for_status()
         flash('Produkt został usunięty!', 'success')
     except requests.exceptions.RequestException:
@@ -269,6 +318,11 @@ def view_cart():
         token = session.get('token')
         username = None
         user_id = None
+
+        cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
+        if not cart_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
 
         if token:
             try:
@@ -287,7 +341,7 @@ def view_cart():
         # Pobranie danych o koszyku
         headers = add_auth_headers()  # Funkcja do dodawania nagłówków autoryzacji, jeśli to konieczne
         print("Nagłówki wysyłane do serwisu koszyka:", headers)
-        response = requests.get(CART_SERVICE_URL, headers=headers)
+        response = requests.get(cart_service_url, headers=headers)
         response.raise_for_status()  # Jeśli odpowiedź jest błędna, zostanie zgłoszony wyjątek
 
         # Debugging: sprawdzenie, czy odpowiedź jest w formacie JSON
@@ -316,8 +370,13 @@ def view_cart():
                 continue  # Pomijamy przedmioty bez ID produktu
 
             try:
+                product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+                if not product_service_url:
+                    flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                    return redirect(url_for('show_products'))
+
                 # Wykonaj zapytanie do serwisu produktów, aby pobrać szczegóły produktu
-                product_response = requests.get(f"{PRODUCT_SERVICE_URL}/{product_id}")
+                product_response = requests.get(f"{product_service_url}/{product_id}")
                 product_response.raise_for_status()  # Jeżeli odpowiedź jest błędna, zgłosi wyjątek
                 product_details = product_response.json()
 
@@ -349,8 +408,13 @@ def view_cart():
 @login_required
 def add_to_cart(product_id):
     try:
+        cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
+        if not cart_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
         headers = add_auth_headers()
-        response = requests.post(f"{CART_SERVICE_URL}/add", json={'product_id': product_id}, headers=headers)
+        response = requests.post(f"{cart_service_url}/add", json={'product_id': product_id}, headers=headers)
         response.raise_for_status()
         flash("Produkt dodany do koszyka.", 'success')
     except requests.exceptions.RequestException:
@@ -363,9 +427,14 @@ def add_to_cart(product_id):
 @login_required
 def remove_from_cart(product_id):
     try:
+        cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
+        if not cart_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
         headers = add_auth_headers()  # Nagłówki autoryzacyjne
         # Wysłanie zapytania do serwisu koszyka w celu usunięcia produktu
-        response = requests.post(f"{CART_SERVICE_URL}/remove", json={'product_id': product_id}, headers=headers)
+        response = requests.post(f"{cart_service_url}/remove", json={'product_id': product_id}, headers=headers)
         response.raise_for_status()  # Jeśli odpowiedź jest błędna, zostanie zgłoszony wyjątek
         flash("Produkt usunięty z koszyka.", 'success')
     except requests.exceptions.RequestException:
@@ -379,8 +448,13 @@ def remove_from_cart(product_id):
 def update_cart(item_id):
     quantity = request.form.get('quantity', type=int)
     try:
+        cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
+        if not cart_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
         headers = add_auth_headers()
-        response = requests.put(f"{CART_SERVICE_URL}/update/{item_id}", json={'quantity': quantity}, headers=headers)
+        response = requests.put(f"{cart_service_url}/update/{item_id}", json={'quantity': quantity}, headers=headers)
         response.raise_for_status()
         flash("Koszyk zaktualizowany.", 'success')
     except requests.exceptions.RequestException:
@@ -393,8 +467,13 @@ def update_cart(item_id):
 @login_required
 def checkout():
     try:
+        order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
+        if not order_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
         headers = add_auth_headers()
-        response = requests.post(ORDER_SERVICE_URL, headers=headers)
+        response = requests.post(order_service_url, headers=headers)
         response.raise_for_status()
         flash("Zamówienie zostało złożone pomyślnie.", 'success')
     except requests.exceptions.RequestException:
@@ -407,8 +486,13 @@ def checkout():
 @login_required
 def view_orders():
     try:
+        order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
+        if not order_service_url:
+            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            return redirect(url_for('show_products'))
+
         headers = add_auth_headers()
-        response = requests.get(ORDER_SERVICE_URL, headers=headers)
+        response = requests.get(order_service_url, headers=headers)
         response.raise_for_status()
         orders = response.json()
     except requests.exceptions.RequestException:
@@ -418,4 +502,12 @@ def view_orders():
     return render_template('orders.html', orders=orders)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)  # Użyj host='0.0.0.0'
+    # Rejestracja usługi w Consul
+    register_service_with_consul()
+
+    # time.sleep(30)  # Czeka przez 2 sekundy
+    # Załaduj URL-e usług do konfiguracji aplikacji
+    app.config['SERVICE_URLS'] = get_service_urls()
+
+    # Uruchom aplikację Flask
+    app.run(debug=True, host='0.0.0.0', port=5000)
