@@ -37,11 +37,9 @@ services:
       - CONSUL_SERVER=http://consul-server:8500
 
   registration_service:
-    # image: registration_service-registration_service
     build: 
       context: ../services/registration_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
       dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
-
     ports:
       - "5001:5001"
     networks:
@@ -52,11 +50,9 @@ services:
       - CONSUL_SERVER=http://consul-server:8500
 
   product_service:
-    # image: product_service-product_service
     build: 
       context: ../services/product_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
       dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
-
     ports:
       - "5002:5002"
     networks:
@@ -66,12 +62,10 @@ services:
     environment:
       - CONSUL_SERVER=http://consul-server:8500
 
-  orders_servicet:
-    # image: orders_service-orders_service
+  orders_service:
     build: 
       context: ../services/orders_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
-      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"]
-
+      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
     ports:
       - "5003:5003"
     networks:
@@ -84,22 +78,22 @@ services:
   traefik:
     image: traefik:v2.10
     command:
-      - "--api.insecure=true" # Udostępnia panel Traefika (tylko do testów)
-      - "--providers.consulcatalog=true" # Konsultuj katalog Consula
+      - "--api.insecure=true"
+      - "--providers.consulcatalog=true"
       - "--providers.consulcatalog.endpoint.address=consul-server:8500"
-      - "--entrypoints.web.address=:80" # Punkt wejściowy HTTP
-      - "--entrypoints.websecure.address=:443" # Punkt wejściowy HTTPS (opcjonalne)
-      - "--log.level=DEBUG" # Poziom logowania dla debugowania
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--log.level=DEBUG"
     ports:
-      - "80:80" # HTTP
-      - "443:443" # HTTPS (opcjonalne)
-      - "8080:8080" # Panel administracyjny Traefika
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
     networks:
       - app-network
     depends_on:
       - consul
     volumes:
-      - ./config/traefik.yml:/etc/traefik/traefik.yml # Montowanie pliku konfiguracyjnego
+      - ./config/traefik.yml:/etc/traefik/traefik.yml
 
 volumes:
   consul_data:

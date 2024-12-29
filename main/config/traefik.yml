@@ -10,14 +10,11 @@ entryPoints:
 
 providers:
   consulCatalog:
-    defaulRule: "Host(' {{ .Name }}.localhost')"
+    defaultRule: "Host(`{{ .Name }}.localhost`)"
     exposedByDefault: true
-      endpoint:
-        address: "consul-server:8500"
-        sheme: http
-
-api:
-  insecure: true
+    endpoint:
+      address: "consul-server:8500"
+      scheme: http
 
 log:
   level: DEBUG

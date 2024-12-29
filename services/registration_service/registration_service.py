@@ -8,7 +8,7 @@ import os
 
 # Dodanie do Consul z Traefik
 def register_service_with_consul():
-    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=int(os.getenv('CONSUL_PORT', 8500)))
     
     service_id = "registration_service_id"  # Unikalny identyfikator dla Twojej usługi
 
@@ -18,17 +18,17 @@ def register_service_with_consul():
     # Rejestracja usługi
     service_name = "registration_service"
     service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
-    service_port = 5001
+    service_port = int(os.getenv('SERVICE_PORT', 5001))
 
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        address=os.getenv('SERVICE_HOST', 'registration_service'),  # Użyj nazwy kontenera Dockera
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.registration_service.rule=Host(`api.esklep.com`) && PathPrefix(`/register`)",
-            f"traefik.http.routers.registration_service.rule=Host(`api.esklep.com`) && PathPrefix(`/login`)",
+            f"traefik.http.routers.registration_service.rule=Host(`registration_service`) && (PathPrefix(`/api/register`) || PathPrefix(`/api/login`))",
+            "traefik.http.services.registration_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.registration_service.loadbalancer.server.port={service_port}",
             "flask"
         ]

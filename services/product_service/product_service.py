@@ -7,9 +7,9 @@ import os
 
 # Rejestracja usługi z Consul
 def register_service_with_consul():
-    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=int(os.getenv('CONSUL_PORT', 8500)))
     
-    service_id = "product_service_id"  # Unikalny identyfikator dla Twojej usługi
+    service_id = "product_service_id"  # Unikalny identyfikator dla usługi
 
     # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
     consul_client.agent.service.deregister(service_id)
@@ -17,18 +17,18 @@ def register_service_with_consul():
     # Rejestracja usługi
     service_name = "product_service"
     service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
-    service_port = 5002
+    service_port = int(os.getenv('SERVICE_PORT', 5002))
 
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        address=os.getenv('SERVICE_HOST', 'product_service'),  # Używamy nazwy serwisu Dockera
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.product_service.rule=Host(`api.esklep.com`) && PathPrefix(`/products`)",
+            f"traefik.http.routers.product_service.rule=Host(`product_service`) && PathPrefix(`/products`)",
             "traefik.http.services.product_service.loadbalancer.server.scheme=http",
-            f"traefik.http.services.product_service.loadbalancer.server.port={service_port}"
+            f"traefik.http.services.product_service.loadbalancer.server.port={service_port}",
             "flask"
         ]
     )
@@ -42,7 +42,7 @@ app.config.from_object(Config)
 db.init_app(app)
 
 # Rejestracja blueprintu z endpointami produktów
-app.register_blueprint(product_blueprint, url_prefix='/api/products')
+app.register_blueprint(product_blueprint, url_prefix='/products')
 
 
 @app.route('/health', methods=["GET"])

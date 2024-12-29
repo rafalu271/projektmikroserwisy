@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Klucz do podpisywania sesji i tokenów
 
 def register_service_with_consul():
-    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+    consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=int(os.getenv('CONSUL_PORT', 8500)))
     
     service_id = "main_app_id"  # Unikalny identyfikator dla Twojej usługi
 
@@ -29,49 +29,62 @@ def register_service_with_consul():
     # Rejestracja usługi
     service_name = "main_app"
     service_id = f"{service_name}-{os.getenv('HOSTNAME', 'local')}"
-    service_port = 5000
+    service_port = int(os.getenv('SERVICE_PORT', 5000))
 
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', '127.0.0.1'),
+        address=os.getenv('SERVICE_HOST', 'main_app'),  # Użyj nazwy Dockera lub domyślnej
         port=service_port,
         tags=[
             "traefik.enable=true",
             f"traefik.http.routers.{service_name}.rule=Host(`main.local`)",
+            f"traefik.http.services.{service_name}.loadbalancer.server.scheme=http",
             f"traefik.http.services.{service_name}.loadbalancer.server.port={service_port}",
             "flask"
         ]
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
 
+
 def get_service_url(service_name):
+    """Pobierz URL usługi z Consul"""
     try:
-        consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=os.getenv('CONSUL_PORT', 8500))
+        consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=int(os.getenv('CONSUL_PORT', 8500)))
         services = consul_client.agent.services()
 
-        for service in services.values():
-            if service['Service'] == service_name:
-                host = service.get('Address', '127.0.0.1')
-                port = service.get('Port', 5000)
-                return f"http://{host}:{port}"
+        # Znajdź usługę w Consul
+        service = next((s for s in services.values() if s['Service'] == service_name), None)
+        if service:
+            host = service.get('Address', '127.0.0.1')
+            port = service.get('Port', 5000)
+            return f"http://{host}:{port}"
+        else:
+            raise ValueError(f"Usługa {service_name} nie została znaleziona w Consul.")
     except Exception as e:
-        print(f"Nie znaleziono usługi {service_name}: {e}")
+        print(f"Błąd podczas pobierania URL usługi {service_name}: {e}")
         return None
 
+
 def get_service_urls():
+    """Pobierz URL-e dla wszystkich wymaganych usług"""
     return {
         'REGISTER_SERVICE_URL': get_service_url('registration_service'),
-        'LOGIN_SERVICE_URL': get_service_url('registration_service'),
+        'LOGIN_SERVICE_URL': get_service_url('registration_service'),  # Współdzielone dla rejestracji i logowania
         'PRODUCT_SERVICE_URL': get_service_url('product_service'),
         'CART_SERVICE_URL': get_service_url('orders_service'),
         'ORDER_SERVICE_URL': get_service_url('orders_service'),
     }
 
+
 def get_service_url_from_config(service_name):
-    urls = app.config.get('SERVICE_URLS', {})  # Pobranie URLi
-    url = urls.get(service_name)
-    print(f"Adres URL z konfiguracji dla '{service_name}': {url}")  # Debugowanie
+    """Pobierz URL z konfiguracji aplikacji"""
+    urls = app.config.get('SERVICE_URLS', {})
+    url = urls.get(service_name, None)  # Domyślnie None, jeśli brak klucza
+    if url:
+        print(f"Adres URL z konfiguracji dla '{service_name}': {url}")
+    else:
+        print(f"Nie znaleziono URL dla '{service_name}' w konfiguracji.")
     return url
 
 # Formularz rejestracji
@@ -196,16 +209,25 @@ def logout():
 @app.route('/products')
 def show_products():
     try:
-        # Używamy endpointu Traefik API Gateway
-        api_gateway_url = "http://api.esklep.com/products"
+        # Pobranie dynamicznego URL-a dla usługi "product_service"
+        product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
+        if not product_service_url:
+            raise ValueError("Nie znaleziono adresu URL dla 'PRODUCT_SERVICE_URL' w konfiguracji.")
 
-        response = requests.get(api_gateway_url)
+        # Wysyłamy żądanie do usługi katalogu produktów
+        api_endpoint = f"{product_service_url}/products"
+        response = requests.get(api_endpoint)
         response.raise_for_status()
         products = response.json()
     except requests.exceptions.RequestException as e:
         # Logujemy błąd w przypadku problemów z żądaniem
         app.logger.error(f"Nie udało się pobrać listy produktów: {str(e)}")
         flash("Nie udało się pobrać listy produktów.", 'danger')
+        products = []
+    except ValueError as e:
+        # Obsługa błędów związanych z brakiem konfiguracji
+        app.logger.error(f"Błąd konfiguracji: {str(e)}")
+        flash("Błąd konfiguracji: Nie można znaleźć adresu URL usługi produktów.", 'danger')
         products = []
     
     # Renderujemy stronę z listą produktów
@@ -217,13 +239,18 @@ def show_product(product_id):
         product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
         if not product_service_url:
             flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
-            return render_template('product_detail.html', product=product)
+            return render_template('product_detail.html', product=None)
+
+        # Upewniamy się, że końcowy URL jest poprawny
+        endpoint = f"{product_service_url}/{product_id}" if product_service_url.endswith('/products') else f"{product_service_url}/products/{product_id}"
+        app.logger.info(f"Zapytanie do URL: {endpoint}")
 
         # Wysłanie zapytania do serwisu produktów w celu pobrania szczegółów produktu
-        response = requests.get(f"{product_service_url}/{product_id}")
+        response = requests.get(endpoint)
         response.raise_for_status()  # Sprawdzamy, czy zapytanie się powiodło
         product = response.json()  # Otrzymujemy dane produktu w formacie JSON
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd pobierania szczegółów produktu: {e}")
         flash("Nie udało się pobrać szczegółów produktu.", 'danger')
         product = None
     
@@ -247,7 +274,7 @@ def add_product():
                 flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
                 return render_template('product_form.html', form=form, product=None)
 
-            response = requests.post(product_service_url, json=new_product)
+            response = requests.post(f"{product_service_url}/products", json=new_product)
             response.raise_for_status()
             flash('Produkt został dodany!', 'success')
             return redirect(url_for('show_products'))
@@ -259,45 +286,58 @@ def add_product():
 @app.route('/products/edit/<int:product_id>', methods=['GET', 'POST', 'PUT'])
 def edit_product(product_id):
     form = ProductForm()  # Tworzymy instancję formularza
+    product = None  # Domyślnie brak danych produktu
+
+    # Obsługa formularza POST lub PUT (aktualizacja produktu)
     if form.validate_on_submit():
-        # Konwertowanie typów danych przed wysłaniem
         updated_product = {
             'name': form.name.data,
             'description': form.description.data,
-            'price': float(form.price.data),  # Konwertujemy cenę na float
-            'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
+            'price': float(form.price.data),
+            'quantity': int(form.quantity.data)
         }
         try:
             product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
             if not product_service_url:
-                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
-                return render_template('product_form.html', form=form, product=product)
+                raise ValueError("Nie znaleziono adresu URL dla usługi produktów.")
 
-            response = requests.put(f"{product_service_url}/{product_id}", json=updated_product)
+            response = requests.put(f"{product_service_url}/products/{product_id}", json=updated_product)
             response.raise_for_status()
             flash('Produkt został zaktualizowany!', 'success')
             return redirect(url_for('show_products'))
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Błąd aktualizacji produktu: {e}")
             flash("Nie udało się zaktualizować produktu.", 'danger')
+        except ValueError as e:
+            app.logger.error(f"Błąd konfiguracji: {e}")
+            flash(str(e), 'danger')
+
+    # Obsługa GET (pobranie szczegółów produktu)
     else:
         try:
             product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
             if not product_service_url:
-                flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
-                return render_template('product_form.html', form=form, product=product)
+                raise ValueError("Nie znaleziono adresu URL dla usługi produktów.")
 
-            response = requests.get(f"{product_service_url}/{product_id}")
+            response = requests.get(f"{product_service_url}/products/{product_id}")
             response.raise_for_status()
             product = response.json()
-            # Ustawianie danych w formularzu
-            form.name.data = product['name']
-            form.description.data = product['description']
-            form.price.data = product['price']
-            form.quantity.data = product['quantity']
-        except requests.exceptions.RequestException:
+
+            # Ustawienie danych w formularzu
+            form.name.data = product.get('name')
+            form.description.data = product.get('description')
+            form.price.data = product.get('price')
+            form.quantity.data = product.get('quantity')
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Błąd pobierania szczegółów produktu: {e}")
             flash("Nie udało się pobrać szczegółów produktu.", 'danger')
             return redirect(url_for('show_products'))
-        
+        except ValueError as e:
+            app.logger.error(f"Błąd konfiguracji: {e}")
+            flash(str(e), 'danger')
+            return redirect(url_for('show_products'))
+
+    # Renderowanie formularza
     return render_template('product_form.html', form=form, product=product)
 
 @app.route('/products/delete/<int:product_id>', methods=['POST'])
@@ -308,7 +348,7 @@ def delete_product(product_id):
             flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
             return redirect(url_for('show_products'))
 
-        response = requests.delete(f"{product_service_url}/{product_id}")
+        response = requests.delete(f"{product_service_url}/products/{product_id}")
         response.raise_for_status()
         flash('Produkt został usunięty!', 'success')
     except requests.exceptions.RequestException:
