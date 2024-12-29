@@ -69,8 +69,8 @@ def get_service_url(service_name):
 def get_service_urls():
     """Pobierz URL-e dla wszystkich wymaganych usług"""
     return {
-        'REGISTER_SERVICE_URL': get_service_url('registration_service'),
-        'LOGIN_SERVICE_URL': get_service_url('registration_service'),  # Współdzielone dla rejestracji i logowania
+        'REGISTER_SERVICE_URL': f"{get_service_url('registration_service')}/api/register",
+        'LOGIN_SERVICE_URL': f"{get_service_url('registration_service')}/api/login",
         'PRODUCT_SERVICE_URL': get_service_url('product_service'),
         'CART_SERVICE_URL': get_service_url('orders_service'),
         'ORDER_SERVICE_URL': get_service_url('orders_service'),
