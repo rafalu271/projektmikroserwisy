@@ -28,13 +28,33 @@ def register_service_with_consul():
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.orders_service.rule=Host(`orders_service`) && (PathPrefix(`/cart`) || PathPrefix(`/orders`) || PathPrefix(`/checkout`))",
+            f"traefik.http.routers.orders_service.rule=Host(`orders_service`) && (PathPrefix(`/api/cart`) || PathPrefix(`/api/orders`) || PathPrefix(`/api/checkout`))",
             "traefik.http.services.orders_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.orders_service.loadbalancer.server.port={service_port}",
             "flask"
         ]
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
+
+
+def get_service_url(service_name):
+    """Pobierz URL usługi z Consul"""
+    consul_host = os.getenv('CONSUL_HOST', 'consul-server')
+    consul_port = int(os.getenv('CONSUL_PORT', 8500))
+
+    try:
+        consul_client = consul.Consul(host=consul_host, port=consul_port)
+        services = consul_client.agent.services()
+        
+        for service in services.values():
+            if service['Service'] == service_name:
+                host = service.get('Address', '127.0.0.1')
+                port = service.get('Port', 5000)
+                return f"http://{host}:{port}"
+    except Exception as e:
+        current_app.logger.error(f"Błąd pobierania URL usługi {service_name}: {e}")
+        raise ValueError(f"Nie można znaleźć usługi {service_name} w Consul.")
+
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -79,7 +99,16 @@ def protected_route():
 
 
 if __name__ == '__main__':
+    # Pobranie URL serwisu produktów z Consul
+    try:
+        product_service_url = get_service_url('product_service')
+        app.config['PRODUCT_SERVICE_URL'] = f"{product_service_url}/products"
+    except ValueError as e:
+        app.logger.error(f"Błąd konfiguracji: {e}")
+        # exit(1)  # Zatrzymaj uruchamianie aplikacji, jeśli URL nie jest dostępny
+
     # Rejestracja usługi w Consul
     register_service_with_consul()
 
-    app.run(debug=True, host='0.0.0.0', port=5003)  # Przykładowo na porcie 5003
+    app.run(debug=True, host='0.0.0.0', port=5003)
+

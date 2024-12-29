@@ -1,10 +1,18 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from db import db
 from models import Order, OrderItem, Cart, CartItem
 import jwt
 from functools import wraps
+import requests
 
 order_blueprint = Blueprint('order_blueprint', __name__)
+
+def get_product_service_url():
+    """Funkcja pomocnicza do pobierania URL serwisu produktów"""
+    product_service_url = current_app.config.get('PRODUCT_SERVICE_URL')
+    if not product_service_url:
+        raise ValueError("Nie można znaleźć URL serwisu produktów.")
+    return product_service_url
 
 # Funkcja pomocnicza do weryfikacji tokenu JWT
 def token_required(f):
@@ -24,6 +32,28 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+def verify_products_in_cart(cart_items):
+    """Weryfikacja dostępności produktów w serwisie produktów"""
+    product_service_url = get_product_service_url()
+
+    for item in cart_items:
+        product_id = item.product_id
+        quantity = item.quantity
+
+        try:
+            response = requests.get(f"{product_service_url}/{product_id}")
+            response.raise_for_status()
+            product_data = response.json()
+
+            if product_data['quantity'] < quantity:
+                return False, f"Produkt ID {product_id} ma niewystarczającą ilość na stanie."
+        except requests.exceptions.RequestException as e:
+            current_app.logger.error(f"Błąd weryfikacji produktu ID {product_id}: {e}")
+            return False, "Błąd weryfikacji produktów."
+    return True, None
+
+
 # Proces składania zamówienia
 @order_blueprint.route('/order/checkout', methods=['POST'])
 @token_required
@@ -35,8 +65,18 @@ def checkout():
     if not cart or not cart.items:
         return jsonify({'message': 'Koszyk jest pusty'}), 400
 
+    # Weryfikacja dostępności produktów w serwisie produktów
+    is_valid, error_message = verify_products_in_cart(cart.items)
+    if not is_valid:
+        return jsonify({'message': error_message}), 400
+
     # Obliczanie całkowitej ceny zamówienia
-    total_price = sum(item.quantity * 10.0 for item in cart.items)  # Przykład ceny produktu (stała wartość)
+    total_price = 0
+    for item in cart.items:
+        product_id = item.product_id
+        response = requests.get(f"{get_product_service_url()}/{product_id}")
+        product_data = response.json()
+        total_price += item.quantity * product_data['price']
 
     # Tworzenie nowego zamówienia
     order = Order(user_id=user_id, total_price=total_price, status='Oczekujące')
@@ -55,6 +95,7 @@ def checkout():
     db.session.commit()
     
     return jsonify({'message': 'Zamówienie zostało złożone', 'order_id': order.id}), 201
+
 
 # Wyświetlanie szczegółów zamówienia
 @order_blueprint.route('/order/<int:order_id>', methods=['GET'])

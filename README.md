@@ -25,6 +25,15 @@ start aplikacji zamówień:
 - przejść do katalogu services\product_service i wykonać:
     python .\orders_service.py
 
-Aplikacja ma już przygotowane pliki docker-compose i Dockerfile dla gotowych aplikacji. Niestety nie ma jeszcze w pełni działającej konfiguracji Consul.
+Obecnie można uruchomić pojedyncze serwisy aplikacji jednak nie będą w stanie się między sobą komunikować. Konfiguracja jest przygotowana pod środowisko dokerowe z wykorzystaniem Consula oraz Traefik.
 
-Można już uruchomić projekt przez jeden docker_compose. Wystarczy uruchomić docker_compose znajdujący się w głównym katalogu main.
+Uruchamianie aplikacji - Docker:
+
+- przed uruchomieniem należy przygotować środowisko docker z docker compose
+- pobrać repozytorium i rozpakować
+- otworzyć konsolę cmd w katalogu "main"
+- wykonać polecenie "docker-compose up"
+
+Po tych krokach całe środowisko wraz z zależnościami powinno zostać utworzone.
+
+Uruchomiona aplkacja znajduje się pod adresem: http://localhost:5000/
