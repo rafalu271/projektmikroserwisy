@@ -4,65 +4,112 @@
     <meta charset="UTF-8">
     <title>Koszyk</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="bg-light">
-<div class="container my-5">
-    <h2 class="text-center mb-4">Twój koszyk</h2>
-
-    <!-- Informacja o użytkowniku -->
-    {% if user_id %}
-        <div class="alert alert-info">
-            Zalogowany jako: {{ user_id }}
+    <!-- Nawigacja -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="{{ url_for('index') }}">eSklep</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('show_products') }}">Produkty</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                {% if session.get('token') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Wyloguj się</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('view_cart') }}">Koszyk</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">Zaloguj się</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('register') }}">Zarejestruj się</a>
+                    </li>
+                {% endif %}
+            </ul>
         </div>
-    {% else %}
-        <div class="alert alert-warning">
-            Nie jesteś zalogowany.
-        </div>
-    {% endif %}
+    </nav>
 
-    <!-- Zawartość koszyka -->
-    {% if true %}
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th>Ilość</th>
-                    <th>Cena za sztukę</th>
-                    <th>Łącznie</th>
-                    <th>Akcje</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in cart_items %}
+    <div class="container my-5">
+        <h2 class="text-center mb-4">Twój koszyk</h2>
+
+        <!-- Informacja o użytkowniku -->
+        {% if user_id %}
+            <div class="alert alert-info text-center">
+                Zalogowany jako użytkownik ID: <strong>{{ user_id }}</strong>
+            </div>
+        {% else %}
+            <div class="alert alert-warning text-center">
+                Nie jesteś zalogowany.
+            </div>
+        {% endif %}
+
+        <!-- Zawartość koszyka -->
+        {% if cart_items %}
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
                     <tr>
-                        <td>
-                            {% if item.product_details %}
-                                <strong>{{ item.product_details['name'] }}</strong>
-                                <p>{{ item.product_details['description'] }}</p>
-                            {% else %}
-                                <span>Brak szczegółów produktu</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ item['quantity'] }}</td>
-                        <td>{{ "{:.2f}".format(item.product_details['price']) if item.product_details else 'Brak ceny' }}</td>
-                        <td>
-                            {{ "{:.2f}".format(item['quantity'] * item.product_details['price']) if item.product_details else 'Brak ceny' }}
-                        </td>
-                        <td>
-                            <form action="{{ url_for('remove_from_cart', product_id=item['product_id']) }}" method="POST" class="d-inline">
-                                <button type="submit" class="btn btn-danger btn-sm">Usuń</button>
-                            </form>
-                        </td>                        
+                        <th>Produkt</th>
+                        <th>Ilość</th>
+                        <th>Cena za sztukę</th>
+                        <th>Łącznie</th>
+                        <th>Akcje</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <div class="alert alert-info">
-            Twój koszyk jest pusty.
-        </div>
-    {% endif %}
-</div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                </thead>
+                <tbody>
+                    {% for item in cart_items %}
+                        <tr>
+                            <td>
+                                {% if item.product_details %}
+                                    <strong>{{ item.product_details['name'] }}</strong>
+                                    <p>{{ item.product_details['description'] }}</p>
+                                {% else %}
+                                    <span>Brak szczegółów produktu</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item['quantity'] }}</td>
+                            <td>
+                                {{ "{:.2f}".format(item.product_details['price']) if item.product_details else 'Brak ceny' }} zł
+                            </td>
+                            <td>
+                                {{ "{:.2f}".format(item['quantity'] * item.product_details['price']) if item.product_details else 'Brak ceny' }} zł
+                            </td>
+                            <td>
+                                <form action="{{ url_for('remove_from_cart', product_id=item['product_id']) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-danger btn-sm">Usuń</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="text-end">
+                <a href="{{ url_for('checkout') }}" class="btn btn-success">Przejdź do kasy</a>
+            </div>
+        {% else %}
+            <div class="alert alert-info text-center">
+                Twój koszyk jest pusty.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Stopka -->
+    <footer class="bg-dark text-white text-center py-3">
+        <p>&copy; 2024 Moja Sklep. Wszelkie prawa zastrzeżone.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

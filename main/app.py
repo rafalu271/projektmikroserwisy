@@ -515,7 +515,7 @@ def view_cart():
                     return redirect(url_for('show_products'))
 
                 # Wykonaj zapytanie do serwisu produktów, aby pobrać szczegóły produktu
-                product_response = requests.get(f"{product_service_url}/{product_id}")
+                product_response = requests.get(f"{product_service_url}/products/{product_id}")
                 product_response.raise_for_status()  # Jeżeli odpowiedź jest błędna, zgłosi wyjątek
                 product_details = product_response.json()
 
