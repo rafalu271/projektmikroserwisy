@@ -75,6 +75,32 @@ services:
     environment:
       - CONSUL_SERVER=http://consul-server:8500
 
+  rating_service:
+    build:
+      context: ../services/rating_service
+      dockerfile: Dockerfile
+    ports:
+      - "5004:5004"
+    networks:
+      - app-network
+    depends_on:
+      - consul
+    environment:
+      - CONSUL_SERVER=http://consul-server:8500
+
+  notification_service:
+    build:
+      context: ../services/notification_service
+      dockerfile: Dockerfile
+    ports:
+      - "5005:5005"
+    networks:
+      - app-network
+    depends_on:
+      - consul
+    environment:
+      - CONSUL_SERVER=http://consul-server:8500
+
   traefik:
     image: traefik:v2.10
     command:

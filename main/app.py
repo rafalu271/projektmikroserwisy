@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os
 import consul
 import time
+import json
 # from flask_consulate import Consul, ConsulManager
 
 
@@ -75,6 +76,8 @@ def get_service_urls():
         'CART_SERVICE_URL': f"{get_service_url('orders_service')}/api/cart",
         'ORDER_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders",
         'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/checkout",
+        'RATING_SERVICE_URL': f"{get_service_url('rating_service')}/ratings",
+        'NOTIFICATION_SERVICE_URL': f"{get_service_url('notification_service')}",
     }
 
 
@@ -237,6 +240,7 @@ def show_products():
 @app.route('/products/<int:product_id>', methods=['GET'])
 def show_product(product_id):
     try:
+        # Pobranie szczegółów produktu z serwisu produktów
         product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
         if not product_service_url:
             flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
@@ -250,8 +254,18 @@ def show_product(product_id):
         response = requests.get(endpoint)
         response.raise_for_status()  # Sprawdzamy, czy zapytanie się powiodło
         product = response.json()  # Otrzymujemy dane produktu w formacie JSON
+
+        # Pobranie średniej oceny z serwisu ocen
+        rating_service_url = get_service_url_from_config('RATING_SERVICE_URL')
+        if rating_service_url:
+            rating_response = requests.get(f"{rating_service_url}/{product_id}")
+            if rating_response.status_code == 200:
+                product['average_rating'] = rating_response.json().get('average_score', 'Brak ocen')
+            else:
+                product['average_rating'] = 'Brak ocen'
+
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"Błąd pobierania szczegółów produktu: {e}")
+        app.logger.error(f"Błąd pobierania szczegółów produktu {product_id}: {e}")
         flash("Nie udało się pobrać szczegółów produktu.", 'danger')
         product = None
     
@@ -356,6 +370,84 @@ def delete_product(product_id):
         flash("Nie udało się usunąć produktu.", 'danger')
     
     return redirect(url_for('show_products'))
+
+
+#System ocen dla produktów 
+@app.route('/products/<int:product_id>/rating', methods=['POST'])
+@login_required
+def add_rating(product_id):
+    # try:
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        # Pobranie URL serwisu ocen z konfiguracji
+        rating_service_url = get_service_url_from_config('RATING_SERVICE_URL')
+        if not rating_service_url:
+            flash('Nie można znaleźć URL dla systemu ocen.', 'danger')
+            return redirect(url_for('show_product', product_id=product_id))
+
+        # Dekodowanie tokenu JWT
+        if token:
+            try:
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
+                return redirect(url_for('login'))
+        else:
+            flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
+            return redirect(url_for('login'))
+
+        # Pobranie danych oceny i komentarza z formularza
+        score = int(request.form.get('score'))
+        comment = request.form.get('comment', '').strip()
+
+        # Walidacja oceny
+        if not (1 <= score <= 5):
+            flash('Ocena musi być w zakresie od 1 do 5.', 'danger')
+            return redirect(url_for('show_product', product_id=product_id))
+
+        # Przygotowanie danych do wysłania
+        data = {
+            'product_id': product_id,
+            'user_id': user_id,
+            'score': score,
+            'comment': comment
+        }
+
+        print("Data sent to rating service:", json.dumps(data, indent=4))  # Debugowanie danych
+
+        # Wysłanie danych do mikroserwisu ocen
+        headers = {'Authorization': f'Bearer {token}'}  # Dodanie tokena do nagłówków
+        response = requests.post(f"{rating_service_url}", json=data, headers=headers)
+        
+        # Logowanie pełnej odpowiedzi przed próbą dekodowania JSON
+        print("Response status code:", response.status_code)
+        print("Response text:", response.text)  # Debugowanie tekstu odpowiedzi
+
+        # Obsługa odpowiedzi
+        if response.status_code == 201:
+            flash('Dodano ocenę!', 'success')
+        else:
+            # Bezpieczne odczytanie JSON lub logowanie błędu
+            try:
+                error_message = response.json().get("message", "Nieznany błąd")
+            except ValueError:  # Jeśli odpowiedź nie jest JSON
+                error_message = "Nieprawidłowa odpowiedź z serwisu ocen."
+            flash(f'Nie udało się dodać oceny: {error_message}', 'danger')
+    #except Exception as e:
+    #    app.logger.error(f"Błąd podczas dodawania oceny dla produktu {product_id}: {e}")
+    #   flash('Wystąpił problem podczas dodawania oceny.', 'danger')
+
+        return redirect(url_for('show_product', product_id=product_id))
+
+
 
 @app.route('/cart')
 @login_required

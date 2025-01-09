@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ product.name if product else 'Produkt' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="bg-light">
+
+    <!-- Nawigacja -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="{{ url_for('index') }}">eSklep</a>
+    </nav>
+
+    <div class="container mt-5">
+        {% if product %}
+            <!-- Nagłówek produktu -->
+            <h2 class="mb-4">{{ product.name }}</h2>
+
+            <!-- Informacje o produkcie -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <p><strong>Opis:</strong> {{ product.description }}</p>
+                    <p><strong>Cena:</strong> {{ product.price }} PLN</p>
+                    <p><strong>Dostępna ilość:</strong> {{ product.quantity }}</p>
+                    <p><strong>Średnia ocena:</strong> {{ product.average_rating or "Brak ocen" }}</p>
+                </div>
+                <div class="col-md-4">
+                    <img src="{{ product.image_url or url_for('static', filename='images/placeholder.png') }}" alt="Obraz produktu" class="img-fluid rounded">
+                </div>
+            </div>
+
+            <!-- Form do dodania produktu do koszyka -->
+            <div class="mb-4">
+                <h3>Dodaj do koszyka</h3>
+                <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" class="d-flex align-items-center">
+                    <div class="me-2">
+                        <label for="quantity" class="form-label">Ilość:</label>
+                        <input type="number" id="quantity" name="quantity" class="form-control" value="1" min="1" max="{{ product.quantity }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Dodaj do koszyka</button>
+                </form>
+            </div>
+
+            <!-- Form do dodania oceny -->
+            <div class="mb-4">
+                <h3>Dodaj ocenę</h3>
+                <form method="POST" action="{{ url_for('add_rating', product_id=product.id) }}">
+                    <div class="mb-3">
+                        <label for="score" class="form-label">Ocena (1-5):</label>
+                        <input type="number" id="score" name="score" class="form-control" min="1" max="5" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="comment" class="form-label">Komentarz:</label>
+                        <textarea id="comment" name="comment" class="form-control" rows="4" placeholder="Podziel się swoją opinią..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success">Dodaj ocenę</button>
+                </form>
+            </div>
+
+            <!-- Przycisk powrotu -->
+            <div class="d-flex justify-content-center">
+                <a href="{{ url_for('show_products') }}" class="btn btn-secondary">Powrót do listy produktów</a>
+            </div>
+        {% else %}
+            <!-- Wiadomość o braku produktu -->
+            <div class="alert alert-danger">
+                <h4>Produkt nie znaleziony</h4>
+                <p>Nie udało się załadować szczegółów produktu. Spróbuj ponownie później.</p>
+            </div>
+            <div class="d-flex justify-content-center">
+                <a href="{{ url_for('show_products') }}" class="btn btn-secondary">Powrót do listy produktów</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+</body>
+</html>
