@@ -5,6 +5,8 @@ import jwt
 import datetime
 import consul
 import os
+import pika
+import json
 
 # Dodanie do Consul z Traefik
 def register_service_with_consul():
@@ -35,6 +37,17 @@ def register_service_with_consul():
     )
     print(f"Zarejestrowano usługę {service_name} w Consul")
 
+# Funkcja do wysyłania wiadomości RabbitMQ
+def publish_message(queue_name, message):
+    try:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+        channel = connection.channel()
+        channel.queue_declare(queue=queue_name)
+        channel.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(message))
+        connection.close()
+        print(f"Wiadomość wysłana do kolejki '{queue_name}': {message}")
+    except Exception as e:
+        print(f"Błąd podczas wysyłania wiadomości RabbitMQ: {str(e)}")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_key'
@@ -80,6 +93,15 @@ def register_user():
     try:
         db.session.add(new_user)
         db.session.commit()
+
+        # Wysłanie wiadomości RabbitMQ
+        message = {
+            'event': 'user_registered',
+            'user_id': new_user.id,
+            'username': new_user.username
+        }
+        publish_message('notifications', message)
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': f'Błąd przy rejestracji: {str(e)}'}), 500

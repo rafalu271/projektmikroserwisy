@@ -21,6 +21,18 @@ services:
     networks:
       - app-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"  # Port komunikacyjny RabbitMQ
+      - "15672:15672"  # Port interfejsu zarządzania
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - app-network
+
   main_app:
     build:
       context: .
@@ -38,21 +50,24 @@ services:
 
   registration_service:
     build: 
-      context: ../services/registration_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
-      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
+      context: ../services/registration_service
+      dockerfile: Dockerfile
     ports:
       - "5001:5001"
     networks:
       - app-network
     depends_on:
       - consul
+      - rabbitmq
     environment:
       - CONSUL_SERVER=http://consul-server:8500
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
 
   product_service:
     build: 
-      context: ../services/product_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
-      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
+      context: ../services/product_service
+      dockerfile: Dockerfile
     ports:
       - "5002:5002"
     networks:
@@ -64,8 +79,8 @@ services:
 
   orders_service:
     build: 
-      context: ../services/orders_service  # Wskazanie katalogu nadrzędnego w stosunku do katalogu z docker-compose.yml
-      dockerfile: Dockerfile      # Nazwa Dockerfile, domyślnie "Dockerfile"
+      context: ../services/orders_service
+      dockerfile: Dockerfile
     ports:
       - "5003:5003"
     networks:
@@ -98,11 +113,15 @@ services:
       - app-network
     depends_on:
       - consul
+      - rabbitmq
     environment:
       - CONSUL_SERVER=http://consul-server:8500
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
 
   traefik:
     image: traefik:v2.10
+    container_name: traefik
     command:
       - "--api.insecure=true"
       - "--providers.consulcatalog=true"

@@ -4,6 +4,8 @@ from models import Order, OrderItem, Cart, CartItem
 import jwt
 from functools import wraps
 import requests
+import pika
+import json
 
 order_blueprint = Blueprint('order_blueprint', __name__)
 
@@ -53,6 +55,22 @@ def verify_products_in_cart(cart_items):
             return False, "Błąd weryfikacji produktów."
     return True, None
 
+# Funkcja wysyłająca powiadomienia do RabbitMQ
+def send_notification_to_rabbitmq(queue_name, message):
+    try:
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host='rabbitmq',
+                credentials=pika.PlainCredentials('guest', 'guest')
+            )
+        )
+        channel = connection.channel()
+        channel.queue_declare(queue=queue_name)
+        channel.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(message))
+        connection.close()
+        current_app.logger.info(f"Wysłano powiadomienie do kolejki '{queue_name}': {message}")
+    except Exception as e:
+        current_app.logger.error(f"Błąd wysyłania powiadomienia do RabbitMQ: {e}")
 
 # Proces składania zamówienia
 @order_blueprint.route('/orders/checkout', methods=['POST'])
@@ -93,67 +111,15 @@ def checkout():
     # Usuwanie koszyka po złożeniu zamówienia
     db.session.delete(cart)
     db.session.commit()
-    
+
+    # Wysłanie powiadomienia do RabbitMQ
+    notification_message = {
+        'event': 'order_created',
+        'order_id': order.id,
+        'user_id': user_id,
+        'total_price': total_price,
+        'status': order.status
+    }
+    send_notification_to_rabbitmq('notifications', notification_message)
+
     return jsonify({'message': 'Zamówienie zostało złożone', 'order_id': order.id}), 201
-
-
-# Wyświetlanie szczegółów zamówienia
-@order_blueprint.route('/order/<int:order_id>', methods=['GET'])
-@token_required
-def get_order(order_id):
-    user_id = request.user_id  # Pobranie user_id z tokenu
-
-    # Pobieranie zamówienia dla użytkownika
-    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
-    if not order:
-        return jsonify({'message': 'Zamówienie nie znalezione lub brak dostępu'}), 404
-
-    order_items = [
-        {'product_id': item.product_id, 'quantity': item.quantity}
-        for item in order.items
-    ]
-
-    return jsonify({
-        'id': order.id,
-        'user_id': order.user_id,
-        'total_price': order.total_price,
-        'status': order.status,
-        'items': order_items
-    })
-
-# Historia zamówień użytkownika
-# Historia zamówień użytkownika
-@order_blueprint.route('/orders', methods=['GET'])
-@token_required
-def get_orders():
-    user_id = request.user_id  # Pobranie user_id z tokenu
-
-    try:
-        # Pobieranie zamówień użytkownika
-        orders = Order.query.filter_by(user_id=user_id).all()
-
-        # Serializacja zamówień
-        serialized_orders = []
-        for order in orders:
-            try:
-                serialized_order = {
-                    'id': order.id,
-                    'user_id': order.user_id,
-                    'total_price': order.total_price,
-                    'status': order.status,
-                    'items': [
-                        {'product_id': item.product_id, 'quantity': item.quantity}
-                        for item in order.order_items
-                    ]
-                }
-                serialized_orders.append(serialized_order)
-            except AttributeError as e:
-                current_app.logger.error(f"Błąd przetwarzania zamówienia ID {order.id}: {e}")
-                continue
-
-        return jsonify(serialized_orders), 200
-
-    except Exception as e:
-        current_app.logger.error(f"Błąd podczas pobierania zamówień: {e}")
-        return jsonify({'message': 'Nie udało się pobrać historii zamówień.'}), 500
-
