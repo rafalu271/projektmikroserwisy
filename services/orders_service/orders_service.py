@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app
 from db import db
 from routes import cart_blueprint, order_blueprint
 from config import Config
@@ -28,7 +28,7 @@ def register_service_with_consul():
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.orders_service.rule=Host(`orders_service`) && (PathPrefix(`/api/cart`) || PathPrefix(`/api/orders`) || PathPrefix(`/api/checkout`))",
+            f"traefik.http.routers.orders_service.rule=Host(`orders_service`) && (PathPrefix(`/api/cart`) || PathPrefix(`/api/orders`) || PathPrefix(`/api/orders/checkout`))",
             "traefik.http.services.orders_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.orders_service.loadbalancer.server.port={service_port}",
             "flask"

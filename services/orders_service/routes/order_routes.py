@@ -55,7 +55,7 @@ def verify_products_in_cart(cart_items):
 
 
 # Proces składania zamówienia
-@order_blueprint.route('/order/checkout', methods=['POST'])
+@order_blueprint.route('/orders/checkout', methods=['POST'])
 @token_required
 def checkout():
     user_id = request.user_id  # Pobranie user_id z tokenu
@@ -122,21 +122,38 @@ def get_order(order_id):
     })
 
 # Historia zamówień użytkownika
+# Historia zamówień użytkownika
 @order_blueprint.route('/orders', methods=['GET'])
 @token_required
 def get_orders():
     user_id = request.user_id  # Pobranie user_id z tokenu
 
-    # Pobieranie zamówień użytkownika
-    orders = Order.query.filter_by(user_id=user_id).all()
+    try:
+        # Pobieranie zamówień użytkownika
+        orders = Order.query.filter_by(user_id=user_id).all()
 
-    return jsonify([{
-        'id': order.id,
-        'user_id': order.user_id,
-        'total_price': order.total_price,
-        'status': order.status,
-        'items': [
-            {'product_id': item.product_id, 'quantity': item.quantity}
-            for item in order.items
-        ]
-    } for order in orders])
+        # Serializacja zamówień
+        serialized_orders = []
+        for order in orders:
+            try:
+                serialized_order = {
+                    'id': order.id,
+                    'user_id': order.user_id,
+                    'total_price': order.total_price,
+                    'status': order.status,
+                    'items': [
+                        {'product_id': item.product_id, 'quantity': item.quantity}
+                        for item in order.order_items
+                    ]
+                }
+                serialized_orders.append(serialized_order)
+            except AttributeError as e:
+                current_app.logger.error(f"Błąd przetwarzania zamówienia ID {order.id}: {e}")
+                continue
+
+        return jsonify(serialized_orders), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Błąd podczas pobierania zamówień: {e}")
+        return jsonify({'message': 'Nie udało się pobrać historii zamówień.'}), 500
+

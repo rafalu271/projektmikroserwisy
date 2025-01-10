@@ -1,28 +1,43 @@
-<!-- orders.html -->
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Historia zamówień</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="bg-light">
+<body>
 <div class="container my-5">
-    <h2 class="text-center mb-4">Twoje zamówienia</h2>
-    <div class="list-group">
-        {% for order in orders %}
-            <div class="list-group-item">
-                <h5>Zamówienie #{{ order.id }} - {{ order.status }}</h5>
-                <p>Data: {{ order.date }}</p>
-                <p>Łączna kwota: {{ order.total }}</p>
-                <ul>
-                    {% for item in order.items %}
-                        <li>{{ item.product_name }} x{{ item.quantity }} - {{ item.price }} zł</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% endfor %}
-    </div>
+    <h2 class="text-center mb-4">Historia zamówień</h2>
+    {% if orders %}
+        <div class="accordion" id="ordersAccordion">
+            {% for order in orders %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading{{ loop.index }}">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="true" aria-controls="collapse{{ loop.index }}">
+                            Zamówienie #{{ order.id }} - Status: {{ order.status }}
+                        </button>
+                    </h2>
+                    <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#ordersAccordion">
+                        <div class="accordion-body">
+                            <p><strong>Data zamówienia:</strong> {{ order.created_at }}</p>
+                            <p><strong>Całkowita kwota:</strong> {{ order.total_price }} PLN</p>
+                            <h5>Przedmioty:</h5>
+                            <ul>
+                                {% for item in order.order_items %}
+                                    <li>
+                                        Produkt ID: {{ item.product_id }} - Ilość: {{ item.quantity }}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">Nie masz jeszcze żadnych zamówień.</div>
+    {% endif %}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

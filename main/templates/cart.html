@@ -95,9 +95,9 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <div class="text-end">
-                <a href="{{ url_for('checkout') }}" class="btn btn-success">Przejdź do kasy</a>
-            </div>
+            <form action="{{ url_for('checkout') }}" method="POST">
+                <button type="submit" class="btn btn-primary">Przejdź do kasy</button>
+            </form>            
         {% else %}
             <div class="alert alert-info text-center">
                 Twój koszyk jest pusty.

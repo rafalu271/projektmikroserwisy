@@ -75,7 +75,7 @@ def get_service_urls():
         'PRODUCT_SERVICE_URL': get_service_url('product_service'),
         'CART_SERVICE_URL': f"{get_service_url('orders_service')}/api/cart",
         'ORDER_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders",
-        'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/checkout",
+        'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders/checkout",
         'RATING_SERVICE_URL': f"{get_service_url('rating_service')}/ratings",
         'NOTIFICATION_SERVICE_URL': f"{get_service_url('notification_service')}",
     }
@@ -606,16 +606,23 @@ def update_cart(item_id):
 @login_required
 def checkout():
     try:
-        order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
+        # Pobierz URL serwisu zamówień
+        order_service_url = get_service_url_from_config('CHECKOUT_SERVICE_URL')
         if not order_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
-            return redirect(url_for('show_products'))
+            flash('Nie można znaleźć adresu URL dla usługi zamówień.', 'danger')
+            return redirect(url_for('view_cart'))
 
+        # Nagłówki autoryzacji
         headers = add_auth_headers()
-        response = requests.post(order_service_url, headers=headers)
+
+        # Wysłanie żądania POST do mikroserwisu zamówień
+        response = requests.post(f"{order_service_url}", headers=headers)
         response.raise_for_status()
+
+        # Obsługa odpowiedzi
         flash("Zamówienie zostało złożone pomyślnie.", 'success')
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd składania zamówienia: {e}")
         flash("Nie udało się złożyć zamówienia.", 'danger')
     
     return redirect(url_for('view_cart'))
@@ -627,18 +634,24 @@ def view_orders():
     try:
         order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
         if not order_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            flash('Nie można znaleźć adresu URL dla usługi zamówień.', 'danger')
             return redirect(url_for('show_products'))
 
         headers = add_auth_headers()
         response = requests.get(order_service_url, headers=headers)
         response.raise_for_status()
         orders = response.json()
+
+        # Upewnij się, że `items` jest listą w każdym zamówieniu
+        for order in orders:
+            order['items'] = list(order.get('items', []))  # Konwersja na listę, jeśli to konieczne
+
     except requests.exceptions.RequestException:
         flash("Nie udało się pobrać historii zamówień.", 'danger')
         orders = []
-    
+
     return render_template('orders.html', orders=orders)
+
 
 if __name__ == '__main__':
     # Rejestracja usługi w Consul

@@ -6,7 +6,8 @@ class Order(db.Model):
     user_id = db.Column(db.Integer, nullable=False)
     total_price = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default='Oczekujące')
-    items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
+    # Zmiana nazwy relacji
+    order_items = db.relationship('OrderItem', back_populates='order', lazy='joined', cascade="all, delete-orphan")
 
 class OrderItem(db.Model):
     __tablename__ = 'order_items'
@@ -14,6 +15,9 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id = db.Column(db.Integer, nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
+
+    # Relacja do zamówienia
+    order = db.relationship('Order', back_populates='order_items')
 
     def to_dict(self):
         return {
