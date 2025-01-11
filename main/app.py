@@ -482,44 +482,46 @@ def add_rating(product_id):
         return redirect(url_for('show_product', product_id=product_id))
 
 
-
-@app.route('/cart')
-# @login_required
+@app.route('/cart', methods=['GET', 'POST'])
 def view_cart():
     try:
         # Pobranie tokenu z sesji
-        # token = session.get('token')
-        # username = None
-        # user_id = None
+        token = session.get('token')
+        user_id = None
+        username = None
 
-        token = None
-        username = "test2137"
-        user_id = 4
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
 
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
         if not cart_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        # if token:
-        #     try:
-        #         # Dekodowanie tokenu JWT
-        #         decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        #         print("Decoded token:", decoded_token)  # Debugowanie tokenu
-        #         username = decoded_token.get('username')  # Pobranie username z tokenu
-        #         user_id = decoded_token.get('user_id')
-        #     except jwt.ExpiredSignatureError:
-        #         flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
-        #     except jwt.InvalidTokenError:
-        #         flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
-        # else:
-        #     flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
-
         # Pobranie danych o koszyku
-        headers = add_auth_headers()  # Funkcja do dodawania nagłówków autoryzacji, jeśli to konieczne
-        print("Nagłówki wysyłane do serwisu koszyka:", headers)
-        response = requests.get(cart_service_url, headers=headers)
-        response.raise_for_status()  # Jeśli odpowiedź jest błędna, zostanie zgłoszony wyjątek
+        data = {'user_id': user_id}  # Przesyłamy user_id w JSON
+        response = requests.get(cart_service_url, json=data)
+        response.raise_for_status()
 
         # Debugging: sprawdzenie, czy odpowiedź jest w formacie JSON
         try:
@@ -549,7 +551,7 @@ def view_cart():
             try:
                 product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
                 if not product_service_url:
-                    flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+                    flash('Nie można znaleźć adresu URL dla usługi produktów.', 'danger')
                     return redirect(url_for('show_products'))
 
                 # Wykonaj zapytanie do serwisu produktów, aby pobrać szczegóły produktu
@@ -580,68 +582,175 @@ def view_cart():
     # Renderowanie szablonu z danymi koszyka
     return render_template('cart.html', cart_items=cart_items, user_id=user_id)
 
+
 # Dodawanie produktu do koszyka
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
-# @login_required
 def add_to_cart(product_id):
     try:
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
         if not cart_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        headers = add_auth_headers()
-        response = requests.post(f"{cart_service_url}/add", json={'product_id': product_id}, headers=headers)
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
+
+        # Przygotowanie danych do wysłania w JSON
+        data = {
+            'user_id': user_id,
+            'product_id': product_id,
+            'quantity': 1  # Domyślna ilość dodawana do koszyka
+        }
+
+        # Wysłanie żądania POST do mikroserwisu koszyka
+        response = requests.post(f"{cart_service_url}/add", json=data)
         response.raise_for_status()
+
         flash("Produkt dodany do koszyka.", 'success')
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd dodawania produktu do koszyka: {e}")
         flash("Nie udało się dodać produktu do koszyka.", 'danger')
 
     return redirect(url_for('show_products'))
 
+
 # Usuwanie produktu z koszyka
 @app.route('/cart/remove/<int:product_id>', methods=['POST'])
-# @login_required
 def remove_from_cart(product_id):
     try:
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
         if not cart_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        headers = add_auth_headers()  # Nagłówki autoryzacyjne
-        # Wysłanie zapytania do serwisu koszyka w celu usunięcia produktu
-        response = requests.post(f"{cart_service_url}/remove", json={'product_id': product_id}, headers=headers)
-        response.raise_for_status()  # Jeśli odpowiedź jest błędna, zostanie zgłoszony wyjątek
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
+
+        # Przygotowanie danych do wysłania w JSON
+        data = {
+            'user_id': user_id,
+            'product_id': product_id
+        }
+
+        # Wysłanie żądania POST do mikroserwisu koszyka
+        response = requests.post(f"{cart_service_url}/remove", json=data)
+        response.raise_for_status()
+
         flash("Produkt usunięty z koszyka.", 'success')
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd usuwania produktu z koszyka: {e}")
         flash("Nie udało się usunąć produktu z koszyka.", 'danger')
 
-    return redirect(url_for('view_cart'))  # Po usunięciu produktu, przekierowanie do koszyka
+    return redirect(url_for('view_cart'))
 
 # Aktualizacja ilości produktu w koszyku
 @app.route('/cart/update/<int:item_id>', methods=['POST'])
-# @login_required
 def update_cart(item_id):
     quantity = request.form.get('quantity', type=int)
     try:
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
         if not cart_service_url:
-            flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
+            flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        headers = add_auth_headers()
-        response = requests.put(f"{cart_service_url}/update/{item_id}", json={'quantity': quantity}, headers=headers)
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
+
+        # Przygotowanie danych do wysłania w JSON
+        data = {
+            'user_id': user_id,
+            'item_id': item_id,
+            'quantity': quantity
+        }
+
+        # Wysłanie żądania PUT do mikroserwisu koszyka
+        response = requests.put(f"{cart_service_url}/update", json=data)
         response.raise_for_status()
+
         flash("Koszyk zaktualizowany.", 'success')
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd aktualizacji koszyka: {e}")
         flash("Nie udało się zaktualizować koszyka.", 'danger')
-    
+
     return redirect(url_for('view_cart'))
 
 # Składanie zamówienia
 @app.route('/checkout', methods=['POST'])
-# @login_required
 def checkout():
     try:
         # Pobierz URL serwisu zamówień
@@ -650,11 +759,39 @@ def checkout():
             flash('Nie można znaleźć adresu URL dla usługi zamówień.', 'danger')
             return redirect(url_for('view_cart'))
 
-        # Nagłówki autoryzacji
-        headers = add_auth_headers()
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
+
+        # Przygotowanie danych do wysłania w JSON
+        data = {'user_id': user_id}
 
         # Wysłanie żądania POST do mikroserwisu zamówień
-        response = requests.post(f"{order_service_url}", headers=headers)
+        response = requests.post(order_service_url, json=data)
         response.raise_for_status()
 
         # Obsługa odpowiedzi
@@ -666,25 +803,59 @@ def checkout():
     return redirect(url_for('view_cart'))
 
 # Wyświetlanie historii zamówień
-@app.route('/orders')
-# @login_required
+@app.route('/orders', methods=['GET', 'POST'])
 def view_orders():
     try:
+        # Pobranie URL dla usługi zamówień
         order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
         if not order_service_url:
             flash('Nie można znaleźć adresu URL dla usługi zamówień.', 'danger')
             return redirect(url_for('show_products'))
 
-        headers = add_auth_headers()
-        response = requests.get(order_service_url, headers=headers)
+        # Pobranie tokenu z sesji
+        token = session.get('token')
+        user_id = None
+        username = None
+
+        if token:
+            try:
+                # Dekodowanie tokenu, jeśli jest dostępny
+                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                username = decoded_token.get('username')  # Pobieranie username z tokenu
+                user_id = decoded_token.get('user_id')
+            except jwt.ExpiredSignatureError:
+                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+            except jwt.InvalidTokenError:
+                flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
+                return redirect(url_for('login'))
+
+        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
+        if not user_id:
+            data = request.get_json()
+            if data and 'user_id' in data:
+                user_id = data.get('user_id')
+
+        if not user_id:
+            flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
+            return redirect(url_for('show_products'))
+
+        # Przygotowanie danych do wysłania w JSON
+        data = {'user_id': user_id}
+
+        # Wysłanie żądania POST do mikroserwisu zamówień
+        response = requests.post(order_service_url, json=data)
         response.raise_for_status()
+
+        # Pobranie i przetworzenie odpowiedzi
         orders = response.json()
 
-        # Upewnij się, że `items` jest listą w każdym zamówieniu
+        # Upewnienie się, że `items` jest listą w każdym zamówieniu
         for order in orders:
             order['items'] = list(order.get('items', []))  # Konwersja na listę, jeśli to konieczne
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Błąd pobierania historii zamówień: {e}")
         flash("Nie udało się pobrać historii zamówień.", 'danger')
         orders = []
 

@@ -1,8 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app
 from db import db
 from models import Order, OrderItem, Cart, CartItem
-import jwt
-from functools import wraps
 import requests
 import pika
 import json
@@ -15,25 +13,6 @@ def get_product_service_url():
     if not product_service_url:
         raise ValueError("Nie można znaleźć URL serwisu produktów.")
     return product_service_url
-
-# Funkcja pomocnicza do weryfikacji tokenu JWT
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization', '').split("Bearer ")[-1]  # Pobranie tokenu z nagłówka
-        if not token:
-            return jsonify({'message': 'Brak tokenu, dostęp zabroniony!'}), 401
-        try:
-            # Weryfikacja tokenu JWT
-            decoded_token = jwt.decode(token, 'super_secret_key', algorithms=['HS256'])  # Upewnij się, że klucz tajny jest właściwy
-            request.user_id = decoded_token['user_id']  # Dodanie user_id do requestu
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token wygasł!'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Nieprawidłowy token!'}), 403
-        return f(*args, **kwargs)
-    return decorated
-
 
 def verify_products_in_cart(cart_items):
     """Weryfikacja dostępności produktów w serwisie produktów"""
@@ -74,9 +53,12 @@ def send_notification_to_rabbitmq(queue_name, message):
 
 # Proces składania zamówienia
 @order_blueprint.route('/orders/checkout', methods=['POST'])
-@token_required
 def checkout():
-    user_id = request.user_id  # Pobranie user_id z tokenu
+    data = request.get_json()
+    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+
+    if not user_id:
+        return jsonify({'message': 'Brak user_id'}), 400
 
     # Pobieranie koszyka użytkownika
     cart = Cart.query.filter_by(user_id=user_id).first()
@@ -125,10 +107,13 @@ def checkout():
     return jsonify({'message': 'Zamówienie zostało złożone', 'order_id': order.id}), 201
 
 # Wyświetlanie szczegółów zamówienia
-@order_blueprint.route('/order/<int:order_id>', methods=['GET'])
-@token_required
+@order_blueprint.route('/order/<int:order_id>', methods=['POST'])
 def get_order(order_id):
-    user_id = request.user_id  # Pobranie user_id z tokenu
+    data = request.get_json()
+    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+
+    if not user_id:
+        return jsonify({'message': 'Brak user_id'}), 400
 
     # Pobieranie zamówienia dla użytkownika
     order = Order.query.filter_by(id=order_id, user_id=user_id).first()
@@ -149,11 +134,13 @@ def get_order(order_id):
     })
 
 # Historia zamówień użytkownika
-# Historia zamówień użytkownika
-@order_blueprint.route('/orders', methods=['GET'])
-@token_required
+@order_blueprint.route('/orders', methods=['POST'])
 def get_orders():
-    user_id = request.user_id  # Pobranie user_id z tokenu
+    data = request.get_json()
+    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+
+    if not user_id:
+        return jsonify({'message': 'Brak user_id'}), 400
 
     try:
         # Pobieranie zamówień użytkownika
