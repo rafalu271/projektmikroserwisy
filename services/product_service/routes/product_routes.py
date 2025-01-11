@@ -1,8 +1,35 @@
 from flask import Blueprint, jsonify, request
 from models.product import Product
 from db import db
+import pika
+import json
 
 product_blueprint = Blueprint('product_blueprint', __name__)
+
+def send_notification_to_rabbitmq(queue_name, message):
+    """Wysyła powiadomienie do RabbitMQ."""
+    try:
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host='rabbitmq',  # Nazwa kontenera RabbitMQ w sieci Docker
+                credentials=pika.PlainCredentials('guest', 'guest')
+            )
+        )
+        channel = connection.channel()
+
+        # Deklaracja kolejki (powinna istnieć lub być zgodna z nasłuchującą)
+        channel.queue_declare(queue=queue_name)
+
+        # Publikacja wiadomości
+        channel.basic_publish(
+            exchange='',
+            routing_key=queue_name,
+            body=json.dumps(message)
+        )
+        connection.close()
+    except Exception as e:
+        print(f"Błąd wysyłania powiadomienia do RabbitMQ: {e}")
+
 
 # Pobieranie wszystkich produktów
 @product_blueprint.route('/', methods=['GET'])
@@ -30,6 +57,20 @@ def add_product():
     )
     db.session.add(new_product)
     db.session.commit()
+
+    # Przygotowanie wiadomości powiadomienia
+    notification_message = {
+        'event': 'product_added',
+        'product_id': new_product.id,
+        'name': new_product.name,
+        'description': new_product.description,
+        'price': new_product.price,
+        'quantity': new_product.quantity
+    }
+    
+    # Wysyłanie powiadomienia do RabbitMQ
+    send_notification_to_rabbitmq('notifications', notification_message)
+
     return jsonify(new_product.to_dict()), 201
 
 # Aktualizacja istniejącego produktu
