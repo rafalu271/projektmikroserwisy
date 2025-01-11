@@ -26,7 +26,7 @@ def register_service_with_consul():
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.product_service.rule=Host(`product_service`) && PathPrefix(`/products`)",
+            f"traefik.http.routers.product_service.rule=PathPrefix(`/products`)",
             "traefik.http.services.product_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.product_service.loadbalancer.server.port={service_port}",
             "flask"

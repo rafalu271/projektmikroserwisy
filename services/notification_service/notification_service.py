@@ -37,7 +37,7 @@ def register_service_with_consul():
             port=service_port,
             tags=[
                 "traefik.enable=true",
-                f"traefik.http.routers.{service_name}.rule=Host(`notification_service`) && PathPrefix(`/notifications`)",
+                f"traefik.http.routers.{service_name}.rule=PathPrefix(`/notifications`)",
                 "traefik.http.services.notification_service.loadbalancer.server.scheme=http",
                 f"traefik.http.services.notification_service.loadbalancer.server.port={service_port}",
                 "flask"

@@ -29,7 +29,7 @@ def register_service_with_consul():
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.{service_name}.rule=Host(`rating_service`) && PathPrefix(`/ratings`)",
+            f"traefik.http.routers.{service_name}.rule=PathPrefix(`/ratings`)",
             "traefik.http.services.rating_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.rating_service.loadbalancer.server.port={service_port}",
             "flask"

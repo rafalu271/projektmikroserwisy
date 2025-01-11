@@ -67,17 +67,30 @@ def get_service_url(service_name):
         return None
 
 
+# def get_service_urls():
+#     """Pobierz URL-e dla wszystkich wymaganych usług"""
+#     return {
+#         'REGISTER_SERVICE_URL': f"{get_service_url('registration_service')}/api/register",
+#         'LOGIN_SERVICE_URL': f"{get_service_url('registration_service')}/api/login",
+#         'PRODUCT_SERVICE_URL': get_service_url('product_service'),
+#         'CART_SERVICE_URL': f"{get_service_url('orders_service')}/api/cart",
+#         'ORDER_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders",
+#         'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders/checkout",
+#         'RATING_SERVICE_URL': f"{get_service_url('rating_service')}/ratings",
+#         'NOTIFICATION_SERVICE_URL': f"{get_service_url('notification_service')}",
+#     }
+
 def get_service_urls():
-    """Pobierz URL-e dla wszystkich wymaganych usług"""
+    base_url = "http://traefik"
     return {
-        'REGISTER_SERVICE_URL': f"{get_service_url('registration_service')}/api/register",
-        'LOGIN_SERVICE_URL': f"{get_service_url('registration_service')}/api/login",
-        'PRODUCT_SERVICE_URL': get_service_url('product_service'),
-        'CART_SERVICE_URL': f"{get_service_url('orders_service')}/api/cart",
-        'ORDER_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders",
-        'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders/checkout",
-        'RATING_SERVICE_URL': f"{get_service_url('rating_service')}/ratings",
-        'NOTIFICATION_SERVICE_URL': f"{get_service_url('notification_service')}",
+        'REGISTER_SERVICE_URL': f"{base_url}/api/register",
+        'LOGIN_SERVICE_URL': f"{base_url}/api/login",
+        'PRODUCT_SERVICE_URL': f"{base_url}",
+        'CART_SERVICE_URL': f"{base_url}/api/cart",
+        'ORDER_SERVICE_URL': f"{base_url}/api/orders",
+        'CHECKOUT_SERVICE_URL': f"{base_url}/api/orders/checkout",
+        'RATING_SERVICE_URL': f"{base_url}/ratings",
+        # 'NOTIFICATION_SERVICE_URL': f"{base_url}/notifications",
     }
 
 

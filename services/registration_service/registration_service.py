@@ -29,7 +29,7 @@ def register_service_with_consul():
         port=service_port,
         tags=[
             "traefik.enable=true",
-            f"traefik.http.routers.registration_service.rule=Host(`registration_service`) && (PathPrefix(`/api/register`) || PathPrefix(`/api/login`))",
+            f"traefik.http.routers.registration_service.rule=(PathPrefix(`/api/register`) || PathPrefix(`/api/login`))",
             "traefik.http.services.registration_service.loadbalancer.server.scheme=http",
             f"traefik.http.services.registration_service.loadbalancer.server.port={service_port}",
             "flask"
