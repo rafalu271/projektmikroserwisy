@@ -113,12 +113,28 @@ class ProductForm(FlaskForm):
     submit = SubmitField('Zapisz')
 
 # Funkcja pomocnicza do dodawania tokenu w nagłówkach
+    # def add_auth_headers(headers=None):
+    #     if headers is None:
+    #         headers = {}
+    #     token = session.get('token')
+    #     if token:
+    #         headers['Authorization'] = f"Bearer {token}"
+    #     return headers
+
 def add_auth_headers(headers=None):
     if headers is None:
         headers = {}
+
+    # Pobierz token z sesji
     token = session.get('token')
-    if token:
-        headers['Authorization'] = f"Bearer {token}"
+
+    # Jeśli token nie istnieje, ustaw domyślny placeholderowy token
+    if not token:
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3MzY1OTQ3NzB9.xkmS2KHJUjm39d4CL4ymnRokFy7Lro8CGd5srHwFxq4"
+
+    # Dodaj nagłówek Authorization z tokenem
+    headers['Authorization'] = f"Bearer {token}"
+
     return headers
 
 # Logika do wymagania logowania
@@ -374,13 +390,18 @@ def delete_product(product_id):
 
 #System ocen dla produktów 
 @app.route('/products/<int:product_id>/rating', methods=['POST'])
-@login_required
+# @login_required
 def add_rating(product_id):
     # try:
-        # Pobranie tokenu z sesji
-        token = session.get('token')
-        user_id = None
-        username = None
+
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3MzY1MjE2MjB9.bom1NRTc9SgEP9JfsRDgGY0XchLeUl_nU9WwNN8ELMU:"
+        username = "test2137"
+        user_id = 4
+
+        # # Pobranie tokenu z sesji
+        # token = session.get('token')
+        # user_id = None
+        # username = None
 
         # Pobranie URL serwisu ocen z konfiguracji
         rating_service_url = get_service_url_from_config('RATING_SERVICE_URL')
@@ -388,21 +409,21 @@ def add_rating(product_id):
             flash('Nie można znaleźć URL dla systemu ocen.', 'danger')
             return redirect(url_for('show_product', product_id=product_id))
 
-        # Dekodowanie tokenu JWT
-        if token:
-            try:
-                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-                username = decoded_token.get('username')  # Pobieranie username z tokenu
-                user_id = decoded_token.get('user_id')
-            except jwt.ExpiredSignatureError:
-                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
-                return redirect(url_for('login'))
-            except jwt.InvalidTokenError:
-                flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
-                return redirect(url_for('login'))
-        else:
-            flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
-            return redirect(url_for('login'))
+        # # Dekodowanie tokenu JWT
+        # if token:
+        #     try:
+        #         decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        #         username = decoded_token.get('username')  # Pobieranie username z tokenu
+        #         user_id = decoded_token.get('user_id')
+        #     except jwt.ExpiredSignatureError:
+        #         flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+        #         return redirect(url_for('login'))
+        #     except jwt.InvalidTokenError:
+        #         flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
+        #         return redirect(url_for('login'))
+        # else:
+        #     flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
+        #     return redirect(url_for('login'))
 
         # Pobranie danych oceny i komentarza z formularza
         score = int(request.form.get('score'))
@@ -450,32 +471,36 @@ def add_rating(product_id):
 
 
 @app.route('/cart')
-@login_required
+# @login_required
 def view_cart():
     try:
         # Pobranie tokenu z sesji
-        token = session.get('token')
-        username = None
-        user_id = None
+        # token = session.get('token')
+        # username = None
+        # user_id = None
+
+        token = None
+        username = "test2137"
+        user_id = 4
 
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
         if not cart_service_url:
             flash('Nie można znaleźć adresu URL dla usługi rejestracji.', 'danger')
             return redirect(url_for('show_products'))
 
-        if token:
-            try:
-                # Dekodowanie tokenu JWT
-                decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-                print("Decoded token:", decoded_token)  # Debugowanie tokenu
-                username = decoded_token.get('username')  # Pobranie username z tokenu
-                user_id = decoded_token.get('user_id')
-            except jwt.ExpiredSignatureError:
-                flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
-            except jwt.InvalidTokenError:
-                flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
-        else:
-            flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
+        # if token:
+        #     try:
+        #         # Dekodowanie tokenu JWT
+        #         decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        #         print("Decoded token:", decoded_token)  # Debugowanie tokenu
+        #         username = decoded_token.get('username')  # Pobranie username z tokenu
+        #         user_id = decoded_token.get('user_id')
+        #     except jwt.ExpiredSignatureError:
+        #         flash("Token wygasł, proszę się zalogować ponownie.", 'danger')
+        #     except jwt.InvalidTokenError:
+        #         flash("Nieprawidłowy token, proszę spróbować ponownie.", 'danger')
+        # else:
+        #     flash("Brak tokenu autoryzacyjnego, proszę się zalogować.", 'danger')
 
         # Pobranie danych o koszyku
         headers = add_auth_headers()  # Funkcja do dodawania nagłówków autoryzacji, jeśli to konieczne
@@ -544,7 +569,7 @@ def view_cart():
 
 # Dodawanie produktu do koszyka
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
-@login_required
+# @login_required
 def add_to_cart(product_id):
     try:
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
@@ -563,7 +588,7 @@ def add_to_cart(product_id):
 
 # Usuwanie produktu z koszyka
 @app.route('/cart/remove/<int:product_id>', methods=['POST'])
-@login_required
+# @login_required
 def remove_from_cart(product_id):
     try:
         cart_service_url = get_service_url_from_config('CART_SERVICE_URL')
@@ -583,7 +608,7 @@ def remove_from_cart(product_id):
 
 # Aktualizacja ilości produktu w koszyku
 @app.route('/cart/update/<int:item_id>', methods=['POST'])
-@login_required
+# @login_required
 def update_cart(item_id):
     quantity = request.form.get('quantity', type=int)
     try:
@@ -603,7 +628,7 @@ def update_cart(item_id):
 
 # Składanie zamówienia
 @app.route('/checkout', methods=['POST'])
-@login_required
+# @login_required
 def checkout():
     try:
         # Pobierz URL serwisu zamówień
@@ -629,7 +654,7 @@ def checkout():
 
 # Wyświetlanie historii zamówień
 @app.route('/orders')
-@login_required
+# @login_required
 def view_orders():
     try:
         order_service_url = get_service_url_from_config('ORDER_SERVICE_URL')
