@@ -31,6 +31,7 @@ Endpointy API
 Poszczególne mikroserwisy można obsługiwać za pomocą aplikacji front-end lub bezpośrednio poprzez poniższe endpointy (osiągalne przez API Gateway):
 
 Serwis rejestracji użytkowników (Registration)
+    
     Rejestracja użytkownika: 
         POST http://localhost/api/register 
 
@@ -51,6 +52,7 @@ Serwis rejestracji użytkowników (Registration)
                 } 
 
 Serwis katalogu produktów (Product)
+
     Lista produktów: 
         GET http://localhost/products 
     
@@ -83,6 +85,7 @@ Serwis katalogu produktów (Product)
         DELETE    http://localhost/products/{productID}
 
 Serwis zamówień i koszyka (Orders) 
+    
     Zawartość koszyka zakupowego: 
         GET http://localhost/api/cart
 
@@ -137,6 +140,7 @@ Serwis zamówień i koszyka (Orders)
                 } 
 
 Serwis ocen produktów (Rating)
+    
     Wystawienie oceny dla danego produktu: 
         POST http://localhost/ratings
 
