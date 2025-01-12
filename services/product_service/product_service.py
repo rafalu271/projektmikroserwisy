@@ -11,7 +11,7 @@ def register_service_with_consul():
     
     service_id = "product_service_id"  # Unikalny identyfikator dla usługi
 
-    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
+    # Wyrejestrowanie przed ponownym rejestrowaniem
     consul_client.agent.service.deregister(service_id)
         
     # Rejestracja usługi
@@ -22,7 +22,7 @@ def register_service_with_consul():
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', 'product_service'),  # Używamy nazwy serwisu Dockera
+        address=os.getenv('SERVICE_HOST', 'product_service'),
         port=service_port,
         tags=[
             "traefik.enable=true",
@@ -41,7 +41,6 @@ app.config.from_object(Config)
 # Inicjalizacja bazy danych
 db.init_app(app)
 
-# Rejestracja blueprintu z endpointami produktów
 app.register_blueprint(product_blueprint, url_prefix='/products')
 
 
@@ -55,5 +54,5 @@ if __name__ == '__main__':
     register_service_with_consul()
 
     with app.app_context():
-        db.create_all()  # Tworzy tabelę produktów, jeśli nie istnieje
+        db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5002)

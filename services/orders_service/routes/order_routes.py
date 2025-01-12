@@ -55,7 +55,7 @@ def send_notification_to_rabbitmq(queue_name, message):
 @order_blueprint.route('/orders/checkout', methods=['POST'])
 def checkout():
     data = request.get_json()
-    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+    user_id = data.get('user_id')
 
     if not user_id:
         return jsonify({'message': 'Brak user_id'}), 400
@@ -110,7 +110,7 @@ def checkout():
 @order_blueprint.route('/order/<int:order_id>', methods=['POST'])
 def get_order(order_id):
     data = request.get_json()
-    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+    user_id = data.get('user_id')
 
     if not user_id:
         return jsonify({'message': 'Brak user_id'}), 400
@@ -137,7 +137,7 @@ def get_order(order_id):
 @order_blueprint.route('/orders', methods=['POST'])
 def get_orders():
     data = request.get_json()
-    user_id = data.get('user_id')  # Pobieranie user_id z JSON
+    user_id = data.get('user_id')
 
     if not user_id:
         return jsonify({'message': 'Brak user_id'}), 400

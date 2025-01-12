@@ -12,9 +12,9 @@ import json
 def register_service_with_consul():
     consul_client = consul.Consul(host=os.getenv('CONSUL_HOST', 'consul-server'), port=int(os.getenv('CONSUL_PORT', 8500)))
     
-    service_id = "registration_service_id"  # Unikalny identyfikator dla Twojej usługi
+    service_id = "registration_service_id"  # Unikalny identyfikator dla usługi
 
-    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
+    # Wyrejestrowanie, jeśli istnieje
     consul_client.agent.service.deregister(service_id)
         
     # Rejestracja usługi
@@ -25,7 +25,7 @@ def register_service_with_consul():
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', 'registration_service'),  # Użyj nazwy kontenera Dockera
+        address=os.getenv('SERVICE_HOST', 'registration_service'),
         port=service_port,
         tags=[
             "traefik.enable=true",
@@ -65,7 +65,7 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
 
-# Tworzenie tabeli użytkowników (jeśli nie istnieje)
+# Tworzenie tabeli użytkowników
 with app.app_context():
     db.create_all()
 
@@ -125,7 +125,7 @@ def login_user():
         # Generowanie tokenu JWT
         token = jwt.encode(
             {
-                'user_id': user.id,  # Używamy user_id zamiast username
+                'user_id': user.id,
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
             },
             app.config['SECRET_KEY'],

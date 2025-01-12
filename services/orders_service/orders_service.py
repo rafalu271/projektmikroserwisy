@@ -24,7 +24,7 @@ def register_service_with_consul():
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', 'orders_service'),  # Użyj nazwy kontenera Dockera
+        address=os.getenv('SERVICE_HOST', 'orders_service'),
         port=service_port,
         tags=[
             "traefik.enable=true",
@@ -64,7 +64,7 @@ db.init_app(app)
 
 # Tworzenie tabel w bazie danych
 with app.app_context():
-    db.create_all()  # Tworzy tabele na podstawie modeli
+    db.create_all()
 
 # Dekorator do weryfikacji tokenów JWT
 def token_required(f):
@@ -76,7 +76,6 @@ def token_required(f):
         try:
             # Weryfikacja tokenu JWT
             decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            # Możesz dodać dane użytkownika do requestu, jeśli jest to potrzebne
             request.user = decoded_token
         except jwt.ExpiredSignatureError:
             return jsonify({'message': 'Token wygasł!'}), 401
@@ -91,7 +90,6 @@ app.register_blueprint(cart_blueprint, url_prefix='/api')
 app.register_blueprint(order_blueprint, url_prefix='/api')
 
 
-# Przykładowe zabezpieczenie endpointów w blueprintach
 @app.route('/api/protected', methods=['GET'])
 @token_required
 def protected_route():
@@ -105,7 +103,6 @@ if __name__ == '__main__':
         app.config['PRODUCT_SERVICE_URL'] = f"{product_service_url}/products"
     except ValueError as e:
         app.logger.error(f"Błąd konfiguracji: {e}")
-        # exit(1)  # Zatrzymaj uruchamianie aplikacji, jeśli URL nie jest dostępny
 
     # Rejestracja usługi w Consul
     register_service_with_consul()

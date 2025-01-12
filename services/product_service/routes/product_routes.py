@@ -11,13 +11,13 @@ def send_notification_to_rabbitmq(queue_name, message):
     try:
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host='rabbitmq',  # Nazwa kontenera RabbitMQ w sieci Docker
+                host='rabbitmq',
                 credentials=pika.PlainCredentials('guest', 'guest')
             )
         )
         channel = connection.channel()
 
-        # Deklaracja kolejki (powinna istnieć lub być zgodna z nasłuchującą)
+        # Deklaracja kolejki
         channel.queue_declare(queue=queue_name)
 
         # Publikacja wiadomości

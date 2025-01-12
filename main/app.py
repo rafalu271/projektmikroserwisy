@@ -8,9 +8,7 @@ import jwt
 from dotenv import load_dotenv
 import os
 import consul
-import time
 import json
-# from flask_consulate import Consul, ConsulManager
 
 
 # Załadowanie zmiennych z pliku .env
@@ -24,7 +22,6 @@ def register_service_with_consul():
     
     service_id = "main_app_id"  # Unikalny identyfikator dla Twojej usługi
 
-    # Sprawdź, czy usługa już istnieje i ją wyrejestruj przed ponownym rejestrowaniem
     consul_client.agent.service.deregister(service_id)
         
     # Rejestracja usługi
@@ -35,7 +32,7 @@ def register_service_with_consul():
     consul_client.agent.service.register(
         name=service_name,
         service_id=service_id,
-        address=os.getenv('SERVICE_HOST', 'main_app'),  # Użyj nazwy Dockera lub domyślnej
+        address=os.getenv('SERVICE_HOST', 'main_app'),
         port=service_port,
         tags=[
             "traefik.enable=true",
@@ -67,19 +64,6 @@ def get_service_url(service_name):
         return None
 
 
-# def get_service_urls():
-#     """Pobierz URL-e dla wszystkich wymaganych usług"""
-#     return {
-#         'REGISTER_SERVICE_URL': f"{get_service_url('registration_service')}/api/register",
-#         'LOGIN_SERVICE_URL': f"{get_service_url('registration_service')}/api/login",
-#         'PRODUCT_SERVICE_URL': get_service_url('product_service'),
-#         'CART_SERVICE_URL': f"{get_service_url('orders_service')}/api/cart",
-#         'ORDER_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders",
-#         'CHECKOUT_SERVICE_URL': f"{get_service_url('orders_service')}/api/orders/checkout",
-#         'RATING_SERVICE_URL': f"{get_service_url('rating_service')}/ratings",
-#         'NOTIFICATION_SERVICE_URL': f"{get_service_url('notification_service')}",
-#     }
-
 def get_service_urls():
     base_url = "http://traefik"
     return {
@@ -90,7 +74,6 @@ def get_service_urls():
         'ORDER_SERVICE_URL': f"{base_url}/api/orders",
         'CHECKOUT_SERVICE_URL': f"{base_url}/api/orders/checkout",
         'RATING_SERVICE_URL': f"{base_url}/ratings",
-        # 'NOTIFICATION_SERVICE_URL': f"{base_url}/notifications",
     }
 
 
@@ -125,14 +108,6 @@ class ProductForm(FlaskForm):
     quantity = IntegerField('Ilość', validators=[DataRequired(), NumberRange(min=0)])
     submit = SubmitField('Zapisz')
 
-# Funkcja pomocnicza do dodawania tokenu w nagłówkach
-    # def add_auth_headers(headers=None):
-    #     if headers is None:
-    #         headers = {}
-    #     token = session.get('token')
-    #     if token:
-    #         headers['Authorization'] = f"Bearer {token}"
-    #     return headers
 
 def add_auth_headers(headers=None):
     if headers is None:
@@ -220,7 +195,7 @@ def login():
             response = requests.post(login_service_url, json={'username': username, 'password': password})
             if response.status_code == 200:
                 data = response.json()
-                print("Zwrócony token:", data['token'])  # Debugowanie tokenu
+                print("Zwrócony token:", data['token'])
                 session['token'] = data['token']
                 flash('Zalogowano pomyślnie!', 'success')
                 return redirect(url_for('index'))
@@ -234,7 +209,7 @@ def login():
 # Wylogowanie użytkownika
 @app.route('/logout')
 def logout():
-    session.pop('token', None)  # Usuwamy token z sesji
+    session.pop('token', None)
     flash('Zostałeś wylogowany.', 'success')
     return redirect(url_for('index'))
 
@@ -253,10 +228,10 @@ def show_products():
         response.raise_for_status()
         products = response.json()
     except requests.exceptions.RequestException as e:
-        # Logujemy błąd w przypadku problemów z żądaniem
         app.logger.error(f"Nie udało się pobrać listy produktów: {str(e)}")
         flash("Nie udało się pobrać listy produktów.", 'danger')
         products = []
+
     except ValueError as e:
         # Obsługa błędów związanych z brakiem konfiguracji
         app.logger.error(f"Błąd konfiguracji: {str(e)}")
@@ -281,8 +256,8 @@ def show_product(product_id):
 
         # Wysłanie zapytania do serwisu produktów w celu pobrania szczegółów produktu
         response = requests.get(endpoint)
-        response.raise_for_status()  # Sprawdzamy, czy zapytanie się powiodło
-        product = response.json()  # Otrzymujemy dane produktu w formacie JSON
+        response.raise_for_status()
+        product = response.json()
 
         # Pobranie średniej oceny z serwisu ocen
         rating_service_url = get_service_url_from_config('RATING_SERVICE_URL')
@@ -304,13 +279,13 @@ def show_product(product_id):
 
 @app.route('/products/add', methods=['GET', 'POST'])
 def add_product():
-    form = ProductForm()  # Tworzymy instancję formularza
+    form = ProductForm()
     if form.validate_on_submit():
         new_product = {
             'name': form.name.data,
             'description': form.description.data,
-            'price': float(form.price.data), # Konwertujemy cenę na float
-            'quantity': int(form.quantity.data)  # Zapewniamy, że ilość jest liczbą całkowitą
+            'price': float(form.price.data),
+            'quantity': int(form.quantity.data)
         }
         try:
             product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
@@ -329,10 +304,9 @@ def add_product():
 
 @app.route('/products/edit/<int:product_id>', methods=['GET', 'POST', 'PUT'])
 def edit_product(product_id):
-    form = ProductForm()  # Tworzymy instancję formularza
-    product = None  # Domyślnie brak danych produktu
+    form = ProductForm()
+    product = None
 
-    # Obsługa formularza POST lub PUT (aktualizacja produktu)
     if form.validate_on_submit():
         updated_product = {
             'name': form.name.data,
@@ -356,7 +330,6 @@ def edit_product(product_id):
             app.logger.error(f"Błąd konfiguracji: {e}")
             flash(str(e), 'danger')
 
-    # Obsługa GET (pobranie szczegółów produktu)
     else:
         try:
             product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
@@ -367,7 +340,6 @@ def edit_product(product_id):
             response.raise_for_status()
             product = response.json()
 
-            # Ustawienie danych w formularzu
             form.name.data = product.get('name')
             form.description.data = product.get('description')
             form.price.data = product.get('price')
@@ -455,7 +427,7 @@ def add_rating(product_id):
             'comment': comment
         }
 
-        print("Data sent to rating service:", json.dumps(data, indent=4))  # Debugowanie danych
+        print("Data sent to rating service:", json.dumps(data, indent=4))
 
         # Wysłanie danych do mikroserwisu ocen
         headers = {'Authorization': f'Bearer {token}'}  # Dodanie tokena do nagłówków
@@ -463,16 +435,15 @@ def add_rating(product_id):
         
         # Logowanie pełnej odpowiedzi przed próbą dekodowania JSON
         print("Response status code:", response.status_code)
-        print("Response text:", response.text)  # Debugowanie tekstu odpowiedzi
+        print("Response text:", response.text)
 
         # Obsługa odpowiedzi
         if response.status_code == 201:
             flash('Dodano ocenę!', 'success')
         else:
-            # Bezpieczne odczytanie JSON lub logowanie błędu
             try:
                 error_message = response.json().get("message", "Nieznany błąd")
-            except ValueError:  # Jeśli odpowiedź nie jest JSON
+            except ValueError:
                 error_message = "Nieprawidłowa odpowiedź z serwisu ocen."
             flash(f'Nie udało się dodać oceny: {error_message}', 'danger')
     #except Exception as e:
@@ -485,7 +456,6 @@ def add_rating(product_id):
 @app.route('/cart', methods=['GET', 'POST'])
 def view_cart():
     try:
-        # Pobranie tokenu z sesji
         token = session.get('token')
         user_id = None
         username = None
@@ -519,23 +489,20 @@ def view_cart():
             return redirect(url_for('show_products'))
 
         # Pobranie danych o koszyku
-        data = {'user_id': user_id}  # Przesyłamy user_id w JSON
+        data = {'user_id': user_id}
         response = requests.get(cart_service_url, json=data)
         response.raise_for_status()
 
-        # Debugging: sprawdzenie, czy odpowiedź jest w formacie JSON
         try:
-            cart_data = response.json()  # Cała odpowiedź
-            cart_items = cart_data.get('cart', [])  # Pobieramy listę przedmiotów z klucza 'cart'
+            cart_data = response.json()
+            cart_items = cart_data.get('cart', [])
         except ValueError:
             flash("Błąd przetwarzania odpowiedzi JSON z serwisu koszyka.", 'danger')
             cart_items = []
 
-        # Debugowanie odpowiedzi koszyka
         print("Odpowiedź koszyka:", cart_data)
         print("Przedmioty w koszyku:", cart_items)
 
-        # Weryfikacja danych koszyka
         if not isinstance(cart_items, list):
             flash("Błąd w formacie danych koszyka.", 'danger')
             cart_items = []
@@ -546,7 +513,7 @@ def view_cart():
             product_id = item.get('product_id')
             if not product_id:
                 print(f"Błąd: Produkt nie zawiera ID: {item}")
-                continue  # Pomijamy przedmioty bez ID produktu
+                continue
 
             try:
                 product_service_url = get_service_url_from_config('PRODUCT_SERVICE_URL')
@@ -559,7 +526,6 @@ def view_cart():
                 product_response.raise_for_status()  # Jeżeli odpowiedź jest błędna, zgłosi wyjątek
                 product_details = product_response.json()
 
-                # Debugowanie szczegółów produktu
                 print(f"Produkt {product_id} szczegóły:", product_details)
 
                 # Dodanie szczegółów produktu do przedmiotu w kopii koszyka
@@ -568,10 +534,10 @@ def view_cart():
                 updated_cart_items.append(updated_item)  # Dodajemy zaktualizowany przedmiot do nowej listy
             except requests.exceptions.RequestException as e:
                 print(f"Nie udało się pobrać szczegółów produktu o ID {product_id}: {e}")
-                item['product_details'] = None  # Jeśli nie udało się pobrać danych produktu
-                updated_cart_items.append(item)  # Dodajemy przedmiot z brakiem szczegółów
+                item['product_details'] = None
+                updated_cart_items.append(item)
 
-        cart_items = updated_cart_items  # Zastępujemy oryginalną listę nową
+        cart_items = updated_cart_items
         print("Cart items po aktualizacji:", cart_items)
 
     except requests.exceptions.RequestException as e:
@@ -592,7 +558,6 @@ def add_to_cart(product_id):
             flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        # Pobranie tokenu z sesji
         token = session.get('token')
         user_id = None
         username = None
@@ -610,7 +575,6 @@ def add_to_cart(product_id):
                 flash("Nieprawidłowy token, proszę się zalogować ponownie.", 'danger')
                 return redirect(url_for('login'))
 
-        # Jeśli tokenu brak lub `user_id` nie jest dostępne, pobierz z JSON w żądaniu
         if not user_id:
             data = request.get_json()
             if data and 'user_id' in data:
@@ -627,7 +591,6 @@ def add_to_cart(product_id):
             'quantity': 1  # Domyślna ilość dodawana do koszyka
         }
 
-        # Wysłanie żądania POST do mikroserwisu koszyka
         response = requests.post(f"{cart_service_url}/add", json=data)
         response.raise_for_status()
 
@@ -648,7 +611,6 @@ def remove_from_cart(product_id):
             flash('Nie można znaleźć adresu URL dla usługi koszyka.', 'danger')
             return redirect(url_for('show_products'))
 
-        # Pobranie tokenu z sesji
         token = session.get('token')
         user_id = None
         username = None
@@ -676,13 +638,11 @@ def remove_from_cart(product_id):
             flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
             return redirect(url_for('show_products'))
 
-        # Przygotowanie danych do wysłania w JSON
         data = {
             'user_id': user_id,
             'product_id': product_id
         }
 
-        # Wysłanie żądania POST do mikroserwisu koszyka
         response = requests.post(f"{cart_service_url}/remove", json=data)
         response.raise_for_status()
 
@@ -731,14 +691,12 @@ def update_cart(item_id):
             flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
             return redirect(url_for('show_products'))
 
-        # Przygotowanie danych do wysłania w JSON
         data = {
             'user_id': user_id,
             'item_id': item_id,
             'quantity': quantity
         }
 
-        # Wysłanie żądania PUT do mikroserwisu koszyka
         response = requests.put(f"{cart_service_url}/update", json=data)
         response.raise_for_status()
 
@@ -787,14 +745,11 @@ def checkout():
             flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
             return redirect(url_for('show_products'))
 
-        # Przygotowanie danych do wysłania w JSON
         data = {'user_id': user_id}
 
-        # Wysłanie żądania POST do mikroserwisu zamówień
         response = requests.post(order_service_url, json=data)
         response.raise_for_status()
 
-        # Obsługa odpowiedzi
         flash("Zamówienie zostało złożone pomyślnie.", 'success')
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Błąd składania zamówienia: {e}")
@@ -840,19 +795,15 @@ def view_orders():
             flash("Nie można pobrać historii zamówień. Brak ID użytkownika.", 'danger')
             return redirect(url_for('show_products'))
 
-        # Przygotowanie danych do wysłania w JSON
         data = {'user_id': user_id}
 
-        # Wysłanie żądania POST do mikroserwisu zamówień
         response = requests.post(order_service_url, json=data)
         response.raise_for_status()
 
-        # Pobranie i przetworzenie odpowiedzi
         orders = response.json()
 
-        # Upewnienie się, że `items` jest listą w każdym zamówieniu
         for order in orders:
-            order['items'] = list(order.get('items', []))  # Konwersja na listę, jeśli to konieczne
+            order['items'] = list(order.get('items', []))
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Błąd pobierania historii zamówień: {e}")

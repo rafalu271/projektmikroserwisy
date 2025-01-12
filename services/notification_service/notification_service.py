@@ -9,10 +9,10 @@ import sys
 
 # Konfiguracja loggera
 logging.basicConfig(
-    level=logging.INFO,  # Ustawienie poziomu logowania
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stdout,  # Logi będą wysyłane bezpośrednio na stdout
-    force=True,  # Nadpisanie istniejących konfiguracji loggera
+    stream=sys.stdout,
+    force=True,
 )
 
 app = Flask(__name__)
@@ -61,7 +61,7 @@ def consume_notifications():
             )
             channel = connection.channel()
 
-            # Deklaracja kolejki (musi być zgodna z producentem)
+            # Deklaracja kolejki
             channel.queue_declare(queue='notifications')
 
             # Funkcja obsługująca wiadomości
